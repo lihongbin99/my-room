@@ -1,0 +1,13 @@
+# 依赖与构建产物
+node_modules/
+dist/
+
+# 下载的原始模型（大文件，裁剪后的在 public/models/）
+models-src/
+
+# 克隆的参考仓库（分析用，勿修改）
+reference/
+
+# 编辑器/系统
+.DS_Store
+Thumbs.db
