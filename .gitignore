@@ -8,6 +8,9 @@ models-src/
 # 克隆的参考仓库（分析用，勿修改）
 reference/
 
+# NES ROM（版权原因不入库，自备后放这里）
+public/roms/*.nes
+
 # 编辑器/系统
 .DS_Store
 Thumbs.db

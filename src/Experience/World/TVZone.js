@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import Experience from '../Experience.js'
+import MarioTV from './MarioTV.js'
 
 // 电视区：电视柜、电视、Switch、双人沙发、茶几（5 个独立小模型，见 public/models/）
 // 每件都走"转向 → 按包围盒缩放 → 对齐定位"的统一流程（fit + place）
@@ -43,9 +44,11 @@ export default class TVZone {
     // 电视：摆上柜面，屏幕面向房间（+z）
     const tvModel = this.fit(tv.scene, { width: TV.width })
     this.place(tvModel, { x: ZONE_X + TV.x, backZ: WALL_INNER_Z + 0.08, onY: cabinetTop })
+    tvModel.updateWorldMatrix(true, true) // MarioTV 里要按世界包围盒定屏幕位置
+    this.marioTV = new MarioTV(tvModel)
 
-    // Switch 主机（模型已裁剪到只剩平板+Joy-Con），竖在柜面上
-    const switchModel = this.fit(switchGltf.scene, { width: SWITCH.width })
+    // Switch 主机（模型已裁剪到只剩平板+Joy-Con），竖在柜面上，模型原始朝向背对房间，转 180°
+    const switchModel = this.fit(switchGltf.scene, { rotationY: Math.PI, width: SWITCH.width })
     this.place(switchModel, {
       x: ZONE_X + SWITCH.x,
       backZ: WALL_INNER_Z + SWITCH.offZ,
@@ -59,6 +62,10 @@ export default class TVZone {
     // 茶几：沙发前
     const tableModel = this.fit(table.scene, { height: TABLE.height })
     this.place(tableModel, { x: ZONE_X + TABLE.x, z: TABLE.z })
+  }
+
+  update() {
+    this.marioTV?.update()
   }
 
   // 统一预处理：阴影、朝向、按包围盒宽或高缩放到目标尺寸

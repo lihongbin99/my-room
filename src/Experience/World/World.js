@@ -21,5 +21,6 @@ export default class World {
     this.environment.update()
     this.computerZone.update()
     this.bookshelf.update()
+    this.tvZone.update() // 放在 bookshelf 之后：光标样式让后写的（电视悬停）赢
   }
 }

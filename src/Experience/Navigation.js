@@ -19,6 +19,7 @@ export default class Navigation {
 
   setView() {
     this.enabled = true // 取书聚焦等场合置 false：忽略新的拖拽/缩放输入
+    this.savedView = null // focus() 保存的聚焦前视角与限位，blur() 恢复
 
     this.view = {}
 
@@ -114,6 +115,41 @@ export default class Navigation {
     this.canvas.addEventListener('wheel', this.onWheel, { passive: false })
 
     this.canvas.addEventListener('contextmenu', (event) => event.preventDefault())
+  }
+
+  // 通用聚焦（书架/屏幕等"两态交互"共用）：保存当前视角与限位，把目标值拨到
+  // 指定机位（相机沿自带的指数平滑飞过去），同时收紧限位（锁角度、收距离等）。
+  // 已处于聚焦时再次 focus 不覆盖最初保存的视角——blur() 一次性回到聚焦前的状态。
+  focus({ target, radius, phi, theta, limits = {} }) {
+    const view = this.view
+    if (!this.savedView) {
+      this.savedView = {
+        spherical: view.spherical.value.clone(),
+        target: view.target.value.clone(),
+        sphericalLimits: JSON.parse(JSON.stringify(view.spherical.limits)),
+        targetLimits: JSON.parse(JSON.stringify(view.target.limits)),
+      }
+    }
+    for (const key of ['radius', 'phi', 'theta']) {
+      if (limits[key]) view.spherical.limits[key] = limits[key]
+    }
+    for (const key of ['x', 'y', 'z']) {
+      if (limits[key]) view.target.limits[key] = limits[key]
+    }
+    view.target.value.copy(target)
+    view.spherical.value.set(radius, phi, theta)
+  }
+
+  // 退出聚焦：恢复聚焦前的视角和限位（飞回去本身就是"已退出"的反馈）
+  blur() {
+    if (!this.savedView) return
+    const view = this.view
+    view.spherical.value.copy(this.savedView.spherical)
+    view.target.value.copy(this.savedView.target)
+    view.spherical.limits = this.savedView.sphericalLimits
+    view.target.limits = this.savedView.targetLimits
+    this.savedView = null
+    this.enabled = true
   }
 
   update() {

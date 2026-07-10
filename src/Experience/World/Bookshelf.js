@@ -404,18 +404,10 @@ export default class Bookshelf {
     return this.raycaster.intersectObject(this.hullMesh, false).length > 0
   }
 
-  // 进入聚焦：记下当前视角和限位，把 Navigation 的目标值拨到书架正前方，
+  // 进入聚焦：走 Navigation.focus()——保存当前视角、把目标值拨到书架正前方，
   // 相机沿用它自己的指数平滑飞过去。仿参考项目的做法：角度锁死、距离收窄
   // 但不锁——滚轮可凑近看书脊，右键可沿书架平移，拖拽旋转无效
   enterFocus() {
-    const view = this.navigation.view
-    this.savedView = {
-      spherical: view.spherical.value.clone(),
-      target: view.target.value.clone(),
-      sphericalLimits: JSON.parse(JSON.stringify(view.spherical.limits)),
-      targetLimits: JSON.parse(JSON.stringify(view.target.limits)),
-    }
-
     const center = new THREE.Vector3(this.group.position.x, CASE_H * 0.52, this.group.position.z)
     // 初始距离按视野算：横竖都要装下书架（加余量）
     const camera = this.camera.instance
@@ -424,30 +416,29 @@ export default class Bookshelf {
     const fitW = (CASE_W / 2 + FOCUS_PAD) / (fovTan * camera.aspect)
     const radius = Math.max(fitH, fitW)
 
-    view.spherical.limits.radius = { min: FOCUS_MIN_R, max: radius }
-    view.spherical.limits.phi = { min: FOCUS_PHI, max: FOCUS_PHI }
-    view.spherical.limits.theta = { min: FOCUS_THETA, max: FOCUS_THETA }
-    view.target.limits.x = { min: center.x, max: center.x }
-    view.target.limits.y = { min: 0.8, max: CASE_H }
-    view.target.limits.z = { min: CASE_Z - CASE_W / 2, max: CASE_Z + CASE_W / 2 }
-    view.target.value.copy(center)
-    view.spherical.value.set(radius, FOCUS_PHI, FOCUS_THETA)
+    this.navigation.focus({
+      target: center,
+      radius,
+      phi: FOCUS_PHI,
+      theta: FOCUS_THETA,
+      limits: {
+        radius: { min: FOCUS_MIN_R, max: radius },
+        phi: { min: FOCUS_PHI, max: FOCUS_PHI },
+        theta: { min: FOCUS_THETA, max: FOCUS_THETA },
+        x: { min: center.x, max: center.x },
+        y: { min: 0.8, max: CASE_H },
+        z: { min: CASE_Z - CASE_W / 2, max: CASE_Z + CASE_W / 2 },
+      },
+    })
 
     this.focused = true
     this.outlineMesh.visible = false
     this.canvas.style.cursor = ''
   }
 
-  // 退出聚焦：恢复进入前的视角和限位（飞回去本身就是"已取消固定"的反馈）
+  // 退出聚焦：Navigation.blur() 恢复进入前的视角和限位
   exitFocus() {
-    if (this.savedView) {
-      const view = this.navigation.view
-      view.spherical.value.copy(this.savedView.spherical)
-      view.target.value.copy(this.savedView.target)
-      view.spherical.limits = this.savedView.sphericalLimits
-      view.target.limits = this.savedView.targetLimits
-    }
-    this.navigation.enabled = true
+    this.navigation.blur()
     this.focused = false
     this.setHover(null)
   }
@@ -541,8 +532,10 @@ export default class Bookshelf {
       }
       if (this.moved >= CLICK_SLOP) return
       if (!this.focused) {
-        // 默认态：点到书架任意处 → 聚焦
-        if (this.raycastHull(event.clientX, event.clientY)) this.enterFocus()
+        // 默认态：点到书架任意处 → 聚焦（导航已被别的区聚焦时不抢）
+        if (!this.navigation.savedView && this.raycastHull(event.clientX, event.clientY)) {
+          this.enterFocus()
+        }
         return
       }
       // 聚焦态：点到书 → 取书；点到书架外 → 退出聚焦（点架体本身不动）
@@ -710,7 +703,8 @@ export default class Bookshelf {
       if (this.focused) {
         this.setHover(this.raycastBooks(this.mouse.x, this.mouse.y))
       } else {
-        const onShelf = this.raycastHull(this.mouse.x, this.mouse.y)
+        // 导航被别的区（电视等）聚焦时书架不再响应悬停
+        const onShelf = !this.navigation.savedView && this.raycastHull(this.mouse.x, this.mouse.y)
         this.outlineMesh.visible = onShelf
         this.canvas.style.cursor = onShelf ? 'pointer' : ''
       }
