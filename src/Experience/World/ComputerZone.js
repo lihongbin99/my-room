@@ -34,6 +34,14 @@ export default class ComputerZone {
       if (child.isMesh) {
         child.castShadow = true
         child.receiveShadow = true
+        // 透射（transmission）材质会让 three 每帧先把整个场景多渲染一遍
+        // 到缓冲纹理做折射背景——核显上实测占掉近半帧时间（23→41fps）。
+        // 机箱玻璃降级为普通半透明（保留 envMap 反射，只丢折射），肉眼无差
+        if (child.material?.transmission > 0) {
+          child.material.transmission = 0
+          child.material.opacity = Math.min(child.material.opacity + 0.13, 1) // 补回透射丢失的透亮感
+          child.material.needsUpdate = true
+        }
       }
     })
 
