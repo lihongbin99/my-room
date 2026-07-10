@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:xp": "cd xp && npm run build",
     "preview": "vite preview"
   },
   "dependencies": {

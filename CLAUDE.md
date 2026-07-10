@@ -24,12 +24,14 @@ src/
     Camera.js                    # 透视相机（无控制逻辑，移动全在 Navigation）
     Navigation.js                # 相机拖拽/缩放/平移，移植自 my-room-in-3d；含通用聚焦 focus()/blur()
     Renderer.js                  # WebGLRenderer：ACES 色调映射、PCFSoft 阴影
+    CSS3D.js                     # CSS3DRenderer 第二渲染层（iframe 浮层，共用相机；空场景跳过 render）
     ThemePanel.js                # 右上角 ☀️—🌙 日夜滑杆（原生 DOM）
     World/
       World.js                   # 场景内容容器，update() 里驱动各物件动画
       Room.js                    # 房间壳：地板 + 两面墙，程序化 canvas 贴图
       Environment.js             # 灯光 + 日夜插值（DAY/NIGHT 两套参数按 nightMix 混合）
       ComputerZone.js            # 电脑区（桌椅主机显示器键鼠），加载 computer-zone.glb
+      XPScreen.js                # 显示器里的浏览器版 Windows XP（两态：截图纹理 / CSS3D iframe）
       TVZone.js                  # 电视区（电视柜/电视/Switch/沙发/茶几，5 个独立 GLB）
       MarioTV.js                 # 电视里可玩的 NES 马里奥（jsnes + CanvasTexture，ROM 自备放 public/roms/）
       Bookshelf.js               # 左墙书架 + 书 + 年份分隔盒 + 取书/放回动效（全程序化，无模型）
@@ -42,6 +44,10 @@ tools/
   split-switch.mjs               # 按顶点连通岛拆分"一个网格混多个部件"（写死了 switch，可参考改造）
 models-src/                      # 下载的原始模型（大文件，不进 public/ 不参与构建）
 public/models/                   # 裁剪压缩后的模型，运行时加载
+public/xp/                       # winXP 构建产物（静态文件，Vite 原样拷进 dist；产物入库）
+xp/                              # fork 自 ShizukuIchi/winXP（MIT，React+CRA 子项目，见其 README 头部说明）
+                                 # 改动：homepage=/xp/、BUILD_PATH=../public/xp、禁 eslint 插件
+                                 # 构建：根目录 npm run build:xp（xp/ 里 npm install 要 --legacy-peer-deps）
 reference/
   my-room-in-3d/                 # 已克隆的参考仓库，分析实现方式用，勿修改
   Room_Portfolio/
@@ -75,6 +81,7 @@ reference/
 - **GLTFLoader 名字陷阱**：three 加载时会清洗节点名（`Plane.006_17` → `Plane006_17`，点号被去掉）。`--keep` 用 GLB 原始名，运行时 `getObjectByName` 用清洗后的名。
 - **两态聚焦机制（通用）**：`Navigation.focus({ target, radius, phi, theta, limits })` 保存当前视角+限位、把目标值拨到指定机位（相机沿自带平滑飞过去、限位按传入收紧），`blur()` 一次性恢复。书架和电视共用。**互斥约定**：`navigation.savedView` 非空 = 已有区在聚焦，其他区的默认态点击/悬停必须先查它再响应（见 Bookshelf/MarioTV 的用法），否则会出现"A 区还在聚焦、B 区把视角抢走"的脏状态。
 - **电视马里奥**：`MarioTV.js`——jsnes 的帧写进 ImageData，放大 blit 到屏幕画布（4:3 居中、两侧黑边、关 imageSmoothing 保像素感），再以 `CanvasTexture` 贴在电视面板前的平面上（`MeshBasicMaterial` + `toneMapped:false`，屏幕自发光不吃场景光）。**进页面就自动开机**：构造里 `initEmulator()`，默认态电视一直播着标题画面/演示（静音、无输入，像家里开着的电视，用户要求）；模拟器按 NES 实机帧率 60.0988fps 用累计 delta 步进，与显示器刷新率解耦。音频走 ScriptProcessor 环形缓冲：AudioContext 页面加载时创建（挂起态，先拿到真实采样率给 jsnes），聚焦点击这个用户手势里才 `resume()`（并丢掉积压采样防杂音），退出 `suspend()`=静音继续播。聚焦态才有键盘转发（←→↑↓、X=A、Z=B、Enter=Start）。聚焦机位 = "屏幕撑满"距离 × `FOCUS_DIST_SCALE`(2.2)，带出电视柜/墙面上下文——之前贴太近满屏游戏画面，用户反馈像被传送进另一个空间；想凑近滚轮拉。ROM 在 `public/roms/mario.nes`（本机已就位，来自 gym-super-mario-bros 仓库；.gitignore 排除 `*.nes` 不入库，**部署时记得一并上传**），缺失时屏幕显示 NO CARTRIDGE。
+- **显示器 XP 系统**：`XPScreen.js` + `CSS3D.js`（2026-07 完成，TODO 4）。两态同 MarioTV：默认态屏幕是一块贴 `public/xp-desktop.webp` 截图的平面（零 DOM 开销），点击聚焦后才把 iframe（`/xp/index.html`）以 `CSS3DObject` 挂到 CSS3D 层、退出时卸载。**叠放用浮层方案而非原定挖洞法**：CSS3D 层 `z-index:5` 叠在 canvas 之上（ThemePanel 的 10 之下）、容器 `pointer-events:none` 只有 iframe wrapper 开 auto——iframe 外的事件穿透到 canvas，导航和"点屏幕外退出"照常；机位正对贴墙屏幕、前方无遮挡物，用不上遮挡正确性（日后穿帮再升级挖洞）。ESC 要同时挂 document 和 `iframe.contentWindow`（同源）——iframe 抢焦点后父页面收不到 keydown。屏幕定位：电脑区 GLB 网格无语义名，`Object_68` 是屏幕面板（零厚度自发光平面，Material.017）、`Object_66` 是显示器机身（命中盒/描边用）；XPScreen 必须在 `shiftDeskToCorner()` 之后构造（桌子挪完才能取世界包围盒）。悬停 cursor 注意：Bookshelf 每帧无条件写 cursor，`World.update()` 里 `xpScreen.update()` 排在它之后才不被冲掉。iframe 分辨率 1280×按屏幕比例，`scale = screenW/1280` 对齐到面板。
 - **模型摆放套路**（新家具优先照 `TVZone.js`）：通用方法 `fit()`（阴影 + rotationX/Y 转向 + 按包围盒宽或高缩放到目标尺寸）和 `place()`（x/z 居中到给定值、`backZ` 把背面贴墙、`onY` 落地或上柜面），所有位置/尺寸/朝向集中在文件顶部常量，`ZONE_X` 可整区平移。房间比例约 1 单位 = 0.5m。电脑区模型原始朝向面向 +z，背靠后墙无需旋转；`shiftDeskToCorner()` 把桌子（含桌面物件）单独推进左墙角、椅子不跟着动。
 
 ## 参考仓库对照
@@ -112,7 +119,7 @@ Room_Portfolio 关键实现文件（照抄交互流程用）：
 
 **功能 6 — XP 里的 ChatGPT 应用**：在 winXP fork 里新增一个 React 聊天窗口应用（winXP 的应用就是普通 React 组件，仿照其 Notepad 加一个即可），UI 用 XP 经典窗口风格，`fetch` 调用后端接口流式输出。**API key 必须放后端**：需要一个小型代理服务（Node/Express 或 serverless 函数），前端只调自己的 `/api/chat`。开发期可用 Vite `server.proxy` 转发。
 
-实施顺序（2026-07 调整并部分完成）：聚焦相机已抽成通用 `Navigation.focus()/blur()`；**功能 5 已完成**——按 jsnes + CanvasTexture 路线（不走 CSS3D），CSS3D 基础设施只剩功能 4 一个用户。功能 4+6 建议作为一条线：先 fork winXP 在它自己的 dev server 里独立开发（含 ChatGPT 窗口 + 后端代理），构建产物放 public/xp/，最后才做 CSS3D 嵌入显示器。**部署目标已定为自有服务器**：ChatGPT 代理写成 Node/Express 小服务即可（不需要 serverless）。
+实施顺序（2026-07 更新）：聚焦相机已抽成通用 `Navigation.focus()/blur()`；**功能 5 已完成**（jsnes + CanvasTexture，不走 CSS3D）；**功能 4 已完成**（fork winXP + CSS3D 浮层嵌入，实现细节见"关键实现说明"的"显示器 XP 系统"条）。剩功能 6：在 xp/ 里加 ChatGPT 聊天窗口组件 + 后端代理，重新 `npm run build:xp` 即可，嵌入层不用动。**部署目标已定为自有服务器**：ChatGPT 代理写成 Node/Express 小服务即可（不需要 serverless）。
 
 ## TODO（按开发顺序）
 
@@ -125,10 +132,12 @@ Room_Portfolio 关键实现文件（照抄交互流程用）：
 3. [x] **书架 + 书**：`World/Bookshelf.js`，全程序化。5 层木架贴左墙前段（z∈[-0.8, 4.0]，前端贴齐墙边缘，避开墙角电脑桌），只上架已读完的书（filter `finished`，约 110 本），按阅读顺序从左上往右下流式排列，每年第一本前立一个刻年份的小木盒分隔（【2018】书 书…【2019】…）。书本尺寸按页数/开本估算，书脊 canvas 贴图竖排书名，封面图懒加载（hover/取书时才请求 public/books/）。交互采用 Room_Portfolio 的两态模式：**默认态**悬停书架显示白描边（包围盒放大一圈的 BackSide 白壳，一个 draw call，以后上 EffectComposer 可换 OutlinePass）、点击书架进入**聚焦态**——保存当前视角后把 `Navigation.view` 的目标值拨到书架正前方（相机用自带平滑飞过去），同时收紧限位：phi/theta 锁死、radius 允许 2.5～取景距离（滚轮凑近看书名）、target 允许沿书架平移；点书架外任意处/ESC 退出，恢复保存的视角与限位（飞回去即"已取消"的反馈）。取书/还书只在聚焦态可用：hover 滑出、点击取书（抽出→飞到镜头前→拖拽翻转→点击/ESC 放回），拿书期间 `Navigation.enabled=false`。动效与数据移植自 `..\book` 项目（那边单位是米，这边 ×2）。这套"保存视角 + 改限位 + enabled 开关"的机制已抽成通用 `Navigation.focus()/blur()`（TODO 5 电视已复用，TODO 4 继续用）。遗留：
    - [ ] 新读完的书在 book 项目的 books.js 维护后拷到 booksData.js（封面图拷到 public/books/）
    - [x] 书架 draw call 优化（2026-07 完成）：默认态书+年份盒合并成 6 个网格（所有书脊/年份盒正面共用一张 4096 宽的图集纹理、封面封底烘成顶点色），全场景 1571→155 call；聚焦书架时才惰性构建逐本独立网格（书脊也复用图集 UV 重映射，不再逐本建纹理），取书/悬停/封面懒加载不变，聚焦态约 694 call（用户认可"默认态牺牲视觉换性能、聚焦态视觉优先"）。enterFocus/exitFocus 里切换 mergedBooks/booksGroup 可见性
-4. [ ] **显示器装浏览器版 Windows XP**（方案见"屏幕交互功能方案"节；聚焦相机已就绪，只差 CSS3D + 挖洞 mesh；建议与 6 作为一条线：先在 winXP fork 里把应用做完再嵌入）
+4. [x] **显示器装浏览器版 Windows XP**（2026-07 完成）：fork ShizukuIchi/winXP 到 `xp/` 子项目，构建产物入库在 `public/xp/`；`CSS3D.js` 第二渲染层 + `World/XPScreen.js` 两态交互（默认态截图纹理、聚焦态挂 iframe），浮层方案未用挖洞（理由与细节见"关键实现说明"）。已用 Playwright 全流程验证（悬停描边/点击聚焦/iframe 里点开始菜单/ESC 与点屏幕外退出/书架互斥/生产构建）。遗留：
+   - [ ] winXP 是 MIT 协议，页面 credits 记得署名 ShizukuIchi/winXP
+   - [ ] 默认态截图 `public/xp-desktop.webp` 是 Playwright 截的当前桌面，日后 XP 里加了新应用（如 ChatGPT）可重截一张
 5. [x] **电视装可玩的超级马里奥**：`World/MarioTV.js`，jsnes + CanvasTexture 路线（不走 CSS3D）。进页面自动开机播标题/演示；两态交互同书架：悬停白描边、点击聚焦（机位带房间上下文）开声音和键盘、ESC/点屏幕外退出=静音继续播。已用 Playwright 全流程验证（自动开机/聚焦取景/Start 开局/键盘转发/退出静音/书架互斥）。遗留：
    - [ ] ROM 已在本机 `public/roms/mario.nes`，但 git 忽略不入库（用户已表示不管版权，若想随仓库走，删掉 .gitignore 里 `public/roms/*.nes` 那行即可）；**部署时记得把它一并上传**
-6. [ ] **XP 里加 ChatGPT 应用**（winXP fork 里加聊天窗口组件 + 后端代理接口）
+6. [ ] **XP 里加 ChatGPT 应用**（在 `xp/` 里仿照 Notepad 加聊天窗口组件 + Node/Express 后端代理，改完 `npm run build:xp` 重新构建即可，3D 侧不用动）
 7. [ ] **夜间灯光优化**（已讨论定案，留到最后做，分三步）：
    1. 占位落地灯：灯杆 + 自发光灯罩球，把 `Environment.js` 里浮空的暖色点光（现在在 (-2, 3.2, -2)）移到灯罩位置（离地约 1.5），并开小尺寸阴影贴图——解决"光没有来源、夜间无影子"的问题
    2. 发光窗户：后墙加自发光面板 + RectAreaLight 面光源（白天当窗、夜里当柔和环境光；面光源不投影，需与 1 搭配）

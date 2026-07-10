@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import Experience from '../Experience.js'
+import XPScreen from './XPScreen.js'
 
 // 电脑区：桌、椅、主机、显示器、键鼠等，来自清理后的 computer-zone.glb
 // （原始下载文件在 models-src/，用 scratchpad 的 gltf-transform 脚本裁剪压缩而来）
@@ -26,6 +27,7 @@ export default class ComputerZone {
       this.setChairSwivel(gltf.scene)
       this.shiftDeskToCorner(gltf.scene)
       this.nudgeChair(gltf.scene)
+      this.xpScreen = new XPScreen(gltf.scene) // 定位屏幕要在桌子推进墙角之后
     })
   }
 

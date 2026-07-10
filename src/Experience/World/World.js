@@ -22,5 +22,7 @@ export default class World {
     this.computerZone.update()
     this.bookshelf.update()
     this.tvZone.update() // 放在 bookshelf 之后：光标样式让后写的（电视悬停）赢
+    // 书架每帧无条件写 cursor，显示器悬停要在它之后跑才不被冲掉（区域互不重叠，只是写序问题）
+    this.computerZone.xpScreen?.update()
   }
 }

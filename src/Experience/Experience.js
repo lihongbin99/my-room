@@ -5,6 +5,7 @@ import Stats from './Utils/Stats.js'
 import Camera from './Camera.js'
 import Navigation from './Navigation.js'
 import Renderer from './Renderer.js'
+import CSS3D from './CSS3D.js'
 import World from './World/World.js'
 import ThemePanel from './ThemePanel.js'
 
@@ -23,12 +24,14 @@ export default class Experience {
     this.camera = new Camera()
     this.navigation = new Navigation()
     this.renderer = new Renderer()
+    this.css3d = new CSS3D()
     this.world = new World()
     this.themePanel = new ThemePanel()
 
     this.sizes.on('resize', () => {
       this.camera.resize()
       this.renderer.resize()
+      this.css3d.resize()
     })
 
     this.time.on('tick', () => {
@@ -36,6 +39,7 @@ export default class Experience {
       this.navigation.update()
       this.world.update()
       this.renderer.update()
+      this.css3d.update()
     })
   }
 }
