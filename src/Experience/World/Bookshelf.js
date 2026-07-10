@@ -205,7 +205,11 @@ export default class Bookshelf {
       items.push({ book })
     }
 
-    // 从最上层往下、每层从左到右流式填充
+    // 从最上层往下、每层从左到右流式填充。这一步只算位置不建网格：
+    // 默认态整墙书是几个合并网格（省 ~1450 个 draw call），聚焦书架时
+    // 才换成逐本独立网格做取书交互（见 ensureBookMeshes，惰性构建）
+    this.bookLayout = []
+    this.yearLayout = []
     let row = 0
     let x = -USABLE / 2
     for (let i = 0; i < items.length; i++) {
@@ -223,115 +227,281 @@ export default class Bookshelf {
         break
       }
       const floorY = this.shelfFloorY(ROWS - 1 - row)
-      if (item.year) this.addYearBox(item.year, x + GAP + YEAR_BOX.w / 2, floorY)
-      else this.addBook(item.book, x, floorY)
+      if (item.year) {
+        this.yearLayout.push({
+          year: item.year,
+          pos: new THREE.Vector3(
+            x + GAP + YEAR_BOX.w / 2,
+            floorY + YEAR_BOX.h / 2,
+            CASE_D / 2 - 0.03 - YEAR_BOX.d / 2
+          ),
+        })
+      } else {
+        const dims = this.bookDims(item.book)
+        this.bookLayout.push({
+          book: item.book,
+          dims,
+          pos: new THREE.Vector3(
+            x + dims.t / 2,
+            floorY + dims.h / 2,
+            CASE_D / 2 - 0.03 - dims.w / 2 - Math.random() * 0.02 // 靠前放，深浅带点随机
+          ),
+        })
+      }
       x += width
+    }
+
+    this.buildAtlas()
+    this.buildMerged()
+
+    // 独立书网格的容器：首次聚焦时才填充
+    this.booksGroup = new THREE.Group()
+    this.booksGroup.visible = false
+    this.group.add(this.booksGroup)
+  }
+
+  // 所有书脊 + 年份盒正面画进一张图集纹理：默认态合并网格与聚焦态独立
+  // 网格共用（书脊不再逐本建 canvas 纹理），UV 重映射到各自格子
+  buildAtlas() {
+    const PPM = 3000 // 3000px/米：凑近看书脊文字仍清晰
+    const PAD = 4 // 格子间留白，防 mipmap 缩小时相邻格互相渗色
+    const ATLAS_W = 4096
+    const cells = []
+    for (const it of this.bookLayout) {
+      cells.push({
+        it,
+        w: Math.max(64, Math.round(it.dims.tM * PPM)),
+        h: Math.round(it.dims.hM * PPM),
+        draw: (g, w, h) => this.drawSpine(g, w, h, it.book),
+      })
+    }
+    for (const it of this.yearLayout) {
+      cells.push({ it, w: 128, h: 196, draw: (g, w, h) => this.drawYearFront(g, w, h, it.year) })
+    }
+
+    // 行式打包
+    let x = PAD
+    let y = PAD
+    let rowH = 0
+    for (const c of cells) {
+      if (x + c.w + PAD > ATLAS_W) {
+        x = PAD
+        y += rowH + PAD
+        rowH = 0
+      }
+      c.x = x
+      c.y = y
+      x += c.w + PAD
+      rowH = Math.max(rowH, c.h)
+    }
+    const ATLAS_H = y + rowH + PAD
+
+    const canvas = document.createElement('canvas')
+    canvas.width = ATLAS_W
+    canvas.height = ATLAS_H
+    const g = canvas.getContext('2d')
+    for (const c of cells) {
+      g.save()
+      g.translate(c.x, c.y)
+      c.draw(g, c.w, c.h)
+      g.restore()
+      // canvas y 朝下、uv v 朝上，这里换算好存起来
+      c.it.uvRect = {
+        u0: c.x / ATLAS_W,
+        u1: (c.x + c.w) / ATLAS_W,
+        v0: 1 - (c.y + c.h) / ATLAS_H,
+        v1: 1 - c.y / ATLAS_H,
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.colorSpace = THREE.SRGBColorSpace
+    texture.anisotropy = 8
+    this.atlasMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.65 })
+  }
+
+  // 把 BoxGeometry 的若干面拷进合并缓冲；face 序号同材质序（0..5 = +x -x +y -y +z -z）
+  appendFaces(dst, geometry, faces, { uvRect, color } = {}) {
+    const pos = geometry.attributes.position
+    const nor = geometry.attributes.normal
+    const uv = geometry.attributes.uv
+    const idx = geometry.index
+    for (const f of faces) {
+      const base = dst.positions.length / 3
+      for (let v = f * 4; v < f * 4 + 4; v++) {
+        dst.positions.push(pos.getX(v), pos.getY(v), pos.getZ(v))
+        dst.normals.push(nor.getX(v), nor.getY(v), nor.getZ(v))
+        let u = uv.getX(v)
+        let w = uv.getY(v)
+        if (uvRect) {
+          u = uvRect.u0 + (uvRect.u1 - uvRect.u0) * u
+          w = uvRect.v0 + (uvRect.v1 - uvRect.v0) * w
+        }
+        dst.uvs.push(u, w)
+        if (color) dst.colors.push(color.r, color.g, color.b)
+      }
+      for (let k = f * 6; k < f * 6 + 6; k++) dst.indices.push(idx.getX(k) - f * 4 + base)
     }
   }
 
-  addBook(b, x, floorY) {
-    const dims = this.bookDims(b)
+  mergedMesh(dst, material) {
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(dst.positions, 3))
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(dst.normals, 3))
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(dst.uvs, 2))
+    if (dst.colors.length) geometry.setAttribute('color', new THREE.Float32BufferAttribute(dst.colors, 3))
+    geometry.setIndex(dst.indices)
+    return new THREE.Mesh(geometry, material)
+  }
+
+  // 默认态的书 + 年份盒：按材质合并成 6 个网格（书脊图集/前口/天地/封面封底
+  // 顶点色 + 年份盒正面/侧面），代替逐本网格的 ~1450 个 draw call。
+  // 封面封底合并后只有纯色顶点色、无独立贴图——默认视角下书在架上封面
+  // 基本被相邻书挡住，视觉损失可忽略（用户认可的取舍）
+  buildMerged() {
+    const mk = () => ({ positions: [], normals: [], uvs: [], colors: [], indices: [] })
+    const spine = mk()
+    const fore = mk()
+    const flat = mk()
+    const cover = mk()
+    const yearFront = mk()
+    const yearSide = mk()
+
+    const matrix = new THREE.Matrix4()
+    for (const it of this.bookLayout) {
+      const geom = new THREE.BoxGeometry(it.dims.w, it.dims.h, it.dims.t)
+      geom.applyMatrix4(matrix.makeRotationY(Math.PI / 2).setPosition(it.pos)) // 同独立网格：书脊朝外
+      const c = new THREE.Color(it.book.color)
+      this.appendFaces(fore, geom, [0])
+      this.appendFaces(spine, geom, [1], { uvRect: it.uvRect })
+      this.appendFaces(flat, geom, [2, 3])
+      this.appendFaces(cover, geom, [4], { color: c.clone().multiplyScalar(0.92) })
+      this.appendFaces(cover, geom, [5], { color: c.clone().multiplyScalar(0.8) })
+      geom.dispose()
+    }
+    for (const it of this.yearLayout) {
+      const geom = new THREE.BoxGeometry(YEAR_BOX.w, YEAR_BOX.h, YEAR_BOX.d)
+      geom.applyMatrix4(matrix.identity().setPosition(it.pos))
+      this.appendFaces(yearFront, geom, [4], { uvRect: it.uvRect })
+      this.appendFaces(yearSide, geom, [0, 1, 2, 3, 5])
+      geom.dispose()
+    }
+
+    this.mergedBooks = new THREE.Group()
+    this.mergedBooks.add(
+      this.mergedMesh(spine, this.atlasMat),
+      this.mergedMesh(fore, this.pageForeMat),
+      this.mergedMesh(flat, this.pageFlatMat),
+      this.mergedMesh(cover, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.56 }))
+    )
+    this.group.add(this.mergedBooks)
+
+    // 年份盒无交互，聚焦态也一直用合并网格
+    this.group.add(this.mergedMesh(yearFront, this.atlasMat), this.mergedMesh(yearSide, this.yearSideMat))
+  }
+
+  // 首次进入聚焦时才把书建成独立网格（取书/悬停滑出需要逐本命中）
+  ensureBookMeshes() {
+    if (this.bookMeshes.length) return
+    for (const it of this.bookLayout) this.addBook(it)
+  }
+
+  addBook(it) {
+    const { book: b, dims, pos, uvRect } = it
     const color = new THREE.Color(b.color)
     // BoxGeometry 材质序：+x 前口、-x 书脊、±y 天头地脚、+z 封面、-z 封底
     const materials = [
       this.pageForeMat,
-      new THREE.MeshStandardMaterial({ map: this.spineTexture(b, dims.tM, dims.hM), roughness: 0.62 }),
+      this.atlasMat, // 书脊共用图集，UV 在几何上重映射到本书的格子
       this.pageFlatMat,
       this.pageFlatMat,
       new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.92), roughness: 0.5 }),
       new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.8), roughness: 0.62 }),
     ]
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(dims.w, dims.h, dims.t), materials)
+    const geometry = new THREE.BoxGeometry(dims.w, dims.h, dims.t)
+    const uv = geometry.attributes.uv
+    for (let v = 4; v < 8; v++) {
+      // -x 书脊面的 4 个顶点（面序 1 × 每面 4 顶点）
+      uv.setXY(
+        v,
+        uvRect.u0 + (uvRect.u1 - uvRect.u0) * uv.getX(v),
+        uvRect.v0 + (uvRect.v1 - uvRect.v0) * uv.getY(v)
+      )
+    }
+    const mesh = new THREE.Mesh(geometry, materials)
     mesh.rotation.y = Math.PI / 2 // 书脊转向朝外
-    mesh.position.set(
-      x + dims.t / 2,
-      floorY + dims.h / 2,
-      CASE_D / 2 - 0.03 - dims.w / 2 - Math.random() * 0.02 // 靠前放，深浅带点随机
-    )
+    mesh.position.copy(pos)
     mesh.userData = {
       book: b,
       dims,
       out: 0, // 当前滑出量
       outT: 0, // 目标滑出量
       coverTried: false,
-      parent: this.group,
+      parent: this.booksGroup,
       homePos: mesh.position.clone(),
       homeQuat: mesh.quaternion.clone(),
       popDir: new THREE.Vector3(0, 0, 1), // 架内局部坐标的"抽出"方向
     }
-    this.group.add(mesh)
+    this.booksGroup.add(mesh)
     this.bookMeshes.push(mesh)
   }
 
-  addYearBox(year, centerX, floorY) {
-    const frontTex = this.canvasTexture(128, 196, (g, w, h) => {
-      g.fillStyle = '#3E2F1F'
-      g.fillRect(0, 0, w, h)
-      g.strokeStyle = '#B08D57'
-      g.lineWidth = 3
-      g.strokeRect(7, 7, w - 14, h - 14)
-      g.fillStyle = '#E8CE9C'
-      g.font = '700 46px Georgia, serif'
-      g.textAlign = 'center'
-      g.textBaseline = 'middle'
-      g.fillText(year.slice(0, 2), w / 2, h / 2 - 27)
-      g.fillText(year.slice(2), w / 2, h / 2 + 27)
-    })
-    const frontMat = new THREE.MeshStandardMaterial({ map: frontTex, roughness: 0.7, envMapIntensity: 0.1 })
-    const s = this.yearSideMat
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(YEAR_BOX.w, YEAR_BOX.h, YEAR_BOX.d),
-      [s, s, s, s, frontMat, s]
-    )
-    mesh.position.set(centerX, floorY + YEAR_BOX.h / 2, CASE_D / 2 - 0.03 - YEAR_BOX.d / 2)
-    this.group.add(mesh)
+  drawYearFront(g, w, h, year) {
+    g.fillStyle = '#3E2F1F'
+    g.fillRect(0, 0, w, h)
+    g.strokeStyle = '#B08D57'
+    g.lineWidth = 3
+    g.strokeRect(7, 7, w - 14, h - 14)
+    g.fillStyle = '#E8CE9C'
+    g.font = '700 46px Georgia, serif'
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.fillText(year.slice(0, 2), w / 2, h / 2 - 27)
+    g.fillText(year.slice(2), w / 2, h / 2 + 27)
   }
 
-  spineTexture(b, tM, hM) {
-    // 3000px/米 + 64px 下限：凑近看书脊时文字仍然清晰（薄书 44px 画布字会糊）
-    const W = Math.max(64, Math.round(tM * 3000))
-    const H = Math.round(hM * 3000)
-    return this.canvasTexture(W, H, (g, w, h) => {
-      g.fillStyle = b.color
-      g.fillRect(0, 0, w, h)
-      const grad = g.createLinearGradient(0, 0, w, 0)
-      grad.addColorStop(0, 'rgba(255,255,255,.16)')
-      grad.addColorStop(0.15, 'rgba(255,255,255,0)')
-      grad.addColorStop(0.8, 'rgba(0,0,0,0)')
-      grad.addColorStop(1, 'rgba(0,0,0,.28)')
-      g.fillStyle = grad
-      g.fillRect(0, 0, w, h)
+  // 书脊绘制（画进图集的格子里，坐标已由调用方 translate 好）：
+  // 64px 下限在图集打包时保证——薄书 44px 画布字会糊
+  drawSpine(g, w, h, b) {
+    g.fillStyle = b.color
+    g.fillRect(0, 0, w, h)
+    const grad = g.createLinearGradient(0, 0, w, 0)
+    grad.addColorStop(0, 'rgba(255,255,255,.16)')
+    grad.addColorStop(0.15, 'rgba(255,255,255,0)')
+    grad.addColorStop(0.8, 'rgba(0,0,0,0)')
+    grad.addColorStop(1, 'rgba(0,0,0,.28)')
+    g.fillStyle = grad
+    g.fillRect(0, 0, w, h)
 
-      // 书名竖排：中文一字一格，英文/数字转 90° 顺着书脊走。
-      // 字占书脊宽的比例往大调 + 深色描边，远看（书脊只有十几像素宽）才有辨识度
-      const size = Math.min(w * 0.66, 72)
-      g.font = `600 ${size}px "Microsoft YaHei", "PingFang SC", sans-serif`
-      g.textAlign = 'center'
-      g.textBaseline = 'middle'
-      g.lineJoin = 'round'
-      g.lineWidth = Math.max(2, size * 0.1)
-      g.strokeStyle = 'rgba(25,16,8,.55)'
-      g.fillStyle = 'rgba(255,255,255,.97)'
-      const drawChar = (ch, x, y) => {
-        g.strokeText(ch, x, y)
-        g.fillText(ch, x, y)
+    // 书名竖排：中文一字一格，英文/数字转 90° 顺着书脊走。
+    // 字占书脊宽的比例往大调 + 深色描边，远看（书脊只有十几像素宽）才有辨识度
+    const size = Math.min(w * 0.66, 72)
+    g.font = `600 ${size}px "Microsoft YaHei", "PingFang SC", sans-serif`
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.lineJoin = 'round'
+    g.lineWidth = Math.max(2, size * 0.1)
+    g.strokeStyle = 'rgba(25,16,8,.55)'
+    g.fillStyle = 'rgba(255,255,255,.97)'
+    const drawChar = (ch, x, y) => {
+      g.strokeText(ch, x, y)
+      g.fillText(ch, x, y)
+    }
+    let y = size * 1.0
+    for (const ch of b.title) {
+      if (y > h - size) break
+      if (/[\x00-\xff]/.test(ch)) {
+        g.save()
+        g.translate(w / 2, y)
+        g.rotate(Math.PI / 2)
+        drawChar(ch, 0, 0)
+        g.restore()
+        y += g.measureText(ch).width + size * 0.16
+      } else {
+        drawChar(ch, w / 2, y)
+        y += size * 1.12
       }
-      let y = size * 1.0
-      for (const ch of b.title) {
-        if (y > h - size) break
-        if (/[\x00-\xff]/.test(ch)) {
-          g.save()
-          g.translate(w / 2, y)
-          g.rotate(Math.PI / 2)
-          drawChar(ch, 0, 0)
-          g.restore()
-          y += g.measureText(ch).width + size * 0.16
-        } else {
-          drawChar(ch, w / 2, y)
-          y += size * 1.12
-        }
-      }
-    })
+    }
   }
 
   fallbackCover(b) {
@@ -408,6 +578,11 @@ export default class Bookshelf {
   // 相机沿用它自己的指数平滑飞过去。仿参考项目的做法：角度锁死、距离收窄
   // 但不锁——滚轮可凑近看书脊，右键可沿书架平移，拖拽旋转无效
   enterFocus() {
+    // 换成逐本独立网格（首次聚焦才构建），合并网格隐藏——取书交互要逐本命中
+    this.ensureBookMeshes()
+    this.mergedBooks.visible = false
+    this.booksGroup.visible = true
+
     const center = new THREE.Vector3(this.group.position.x, CASE_H * 0.52, this.group.position.z)
     // 初始距离按视野算：横竖都要装下书架（加余量）
     const camera = this.camera.instance
@@ -441,6 +616,9 @@ export default class Bookshelf {
     this.navigation.blur()
     this.focused = false
     this.setHover(null)
+    // 回默认态：换回合并网格省 draw call（拿着书时退不了聚焦，这里书都在架上）
+    this.booksGroup.visible = false
+    this.mergedBooks.visible = true
   }
 
   /* ---------- 说明卡（取书时底部弹出） ---------- */
