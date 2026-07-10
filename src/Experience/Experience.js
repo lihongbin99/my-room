@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import Sizes from './Utils/Sizes.js'
 import Time from './Utils/Time.js'
+import Stats from './Utils/Stats.js'
 import Camera from './Camera.js'
 import Navigation from './Navigation.js'
 import Renderer from './Renderer.js'
@@ -17,6 +18,7 @@ export default class Experience {
     this.canvas = canvas
     this.sizes = new Sizes()
     this.time = new Time()
+    this.stats = new Stats(this.sizes.width > 420)
     this.scene = new THREE.Scene()
     this.camera = new Camera()
     this.navigation = new Navigation()
@@ -30,6 +32,7 @@ export default class Experience {
     })
 
     this.time.on('tick', () => {
+      this.stats.update()
       this.navigation.update()
       this.world.update()
       this.renderer.update()

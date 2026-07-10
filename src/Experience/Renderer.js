@@ -4,6 +4,7 @@ import Experience from './Experience.js'
 export default class Renderer {
   constructor() {
     this.experience = new Experience()
+    this.stats = this.experience.stats
     this.canvas = this.experience.canvas
     this.sizes = this.experience.sizes
     this.scene = this.experience.scene
@@ -24,6 +25,10 @@ export default class Renderer {
     this.instance.toneMappingExposure = 1.1
     this.instance.setClearColor('#16121f')
     this.resize()
+
+    if (this.stats) {
+      this.stats.setRenderPanel(this.instance.getContext())
+    }
   }
 
   resize() {
@@ -32,6 +37,8 @@ export default class Renderer {
   }
 
   update() {
+    if (this.stats) this.stats.beforeRender()
     this.instance.render(this.scene, this.camera.instance)
+    if (this.stats) this.stats.afterRender()
   }
 }
