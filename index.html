@@ -8,10 +8,23 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; overflow: hidden; background: #16121f; }
     canvas.webgl { position: fixed; top: 0; left: 0; outline: none; }
+    .beian {
+      position: fixed; bottom: 8px; left: 0; right: 0; z-index: 10;
+      text-align: center; pointer-events: none;
+      font: 12px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    .beian a {
+      pointer-events: auto;
+      color: rgba(255, 255, 255, 0.35); text-decoration: none;
+    }
+    .beian a:hover { color: rgba(255, 255, 255, 0.7); }
   </style>
 </head>
 <body>
   <canvas class="webgl"></canvas>
+  <footer class="beian">
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">粤ICP备2024192526号-1</a>
+  </footer>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

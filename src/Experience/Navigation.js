@@ -24,7 +24,7 @@ export default class Navigation {
     this.view = {}
 
     this.view.spherical = {}
-    this.view.spherical.value = new THREE.Spherical(14, Math.PI * 0.35, Math.PI * 0.25)
+    this.view.spherical.value = new THREE.Spherical(20, Math.PI * 0.35, Math.PI * 0.25)
     this.view.spherical.smoothed = this.view.spherical.value.clone()
     this.view.spherical.smoothing = 0.005
     this.view.spherical.limits = {
