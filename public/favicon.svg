@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 每天只学一点点：暗色房间里一盏暖光下的摊开书 -->
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="26%" r="62%">
+      <stop offset="0%" stop-color="#ffd98a" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ffd98a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#16121f"/>
+  <rect width="64" height="64" rx="14" fill="url(#glow)"/>
+  <!-- 灯 / 光点 -->
+  <circle cx="32" cy="15.5" r="6" fill="#ffcf6b"/>
+  <!-- 摊开的书 -->
+  <path d="M32 30 C27 25.5 18.5 24.2 12 26 V49 C18.5 47.2 27 48.4 32 53 C37 48.4 45.5 47.2 52 49 V26 C45.5 24.2 37 25.5 32 30 Z" fill="#f3e9d7"/>
+  <path d="M32 30.5 V52.5" stroke="#16121f" stroke-width="3.2" stroke-linecap="round"/>
+</svg>
