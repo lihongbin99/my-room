@@ -67,6 +67,10 @@ export default class MarioTV {
     this.setFocusHelpers(tvModel)
     this.setCaption()
     this.setInteraction()
+    // ready 给 Loading（BIOS 开机屏）收口用：resolve(true)=ROM 就绪，false=NO CARTRIDGE
+    this.ready = new Promise((resolve) => {
+      this.bootResolve = resolve
+    })
     this.initEmulator() // 进页面就开机：默认态电视播标题画面/演示
   }
 
@@ -372,13 +376,16 @@ export default class MarioTV {
       this.nes.loadROM(bin)
       this.running = true // 常开：不聚焦也一直播（静音）
       this.frameAcc = 0
+      this.bootResolve?.(true)
     } catch (error) {
       console.warn('NES 启动失败：', error)
       this.nes = null
       this.running = false
       this.drawMissingRom()
+      this.bootResolve?.(false)
     } finally {
       this.loading = false
+      this.bootResolve = null // 聚焦时可能重试 initEmulator，只对首次结果收口
     }
   }
 

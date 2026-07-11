@@ -26,6 +26,7 @@ src/
     Renderer.js                  # WebGLRenderer：ACES 色调映射、PCFSoft 阴影；夜间切 EffectComposer+Bloom 双路径
     CSS3D.js                     # CSS3DRenderer 第二渲染层（iframe 浮层，共用相机；空场景跳过 render）
     ThemePanel.js                # 右上角 ☀️—🌙 日夜滑杆（原生 DOM）
+    Loading.js                   # 仿 BIOS 开机自检加载屏（真实资源日志 + shader 预热 + 自动进场）
     World/
       World.js                   # 场景内容容器，update() 里驱动各物件动画
       Room.js                    # 房间壳：地板 + 两面墙，程序化 canvas 贴图
@@ -75,6 +76,7 @@ reference/
 - **日夜切换**：`Environment.js` 里 DAY/NIGHT 两套参数（背景色、半球光、主光颜色/强度），`setNightMix(0~1)` 设目标值，`update()` 每帧缓动，所以滑杆停在中间就是黄昏。滑杆 UI 在 `ThemePanel.js`。缓动收敛后要钉到目标值再决定 apply——低帧率（大 delta）下一步跳到目标，"差值超阈值才 apply"会跳过最后一次应用（修过一次）。**新夜灯模块不进 Environment**：各自在 `update()` 里读 `environment.currentMix` 自行插值（文件顶部自带 DAY/NIGHT 常量 + lastMix 早退），Environment 仍是唯一缓动驱动者；World.update 里必须排在 `environment.update()` 之后。
 - **夜间灯光**（TODO 7，2026-07 完成）：三个实体夜灯模块 `FloorLamp`（沙发旁落地灯：暖点光从 Environment 迁来 + 夜间向下投影 spot 512 软影，白天 `spot.visible=false` 连阴影 pass 一起省）、`WallWindow`（后墙发光窗：`toneMapped:false` HDR 玻璃白天暖 `(1.6,1.15,.75)` 夜里冷蓝 `(.55,.72,1.9)` + RectAreaLight，LTC 表模块级 init 一次；白天强度压 0.5 勿提亮全屋）、`DeskGlow`（桌前沿冰蓝 LED 呼吸灯带 + 桌角小台灯；**台灯离墙近，点光强度别贪，墙面像素 >1.15 会整片泛光白爆**）。屏幕夜里渐亮：XPScreen/MarioTV 材质 color 随 mix 1.0→1.35。投影灯恒 ≤2（太阳 + 落地灯 spot）。
 - **Bloom 双路径**：`Renderer.js` 里 `currentMix > 0.02` 才走 EffectComposer（RenderPass + UnrealBloom + OutputPass，HalfFloat + samples:4），白天保持直渲（零后期开销 + 画布 MSAA）。阈值 1.15（线性 HDR 域）只放行灯罩 2.6/LED 2.2/月窗 1.9/夜间屏幕 1.35；悬停描边白壳 1.0 不泛光。**⚠️ 清屏色陷阱**：背景必须走 `scene.background`（Color），不能用 `renderer.setClearColor`——后者在调用瞬间按当时绑定的渲染目标定颜色空间编码，composer 下清屏色被二次变换、夜空亮 4 倍（逐像素比对定位过）。**⚠️ GLB 失控 emissive**：Sketchfab 的 KHR_materials_emissive_strength 会带 >1 的发光强度（椅子红件 ×10 夜里炸成红光团），`ComputerZone.setModel()` 已统一钳到 1，以后引入新模型和透射材质一起查。管线切换点仅背景虚空微暗差异，房间内容两路径逐像素一致。
+- **BIOS 加载屏**（TODO 8，2026-07 完成）：`Loading.js` + index.html 里的静态遮罩标记（JS 到位前就显示第一行；z-index 10010 盖住 stats.js 的 10000）。黑底绿字仿 POST 自检逐行打印真实加载日志，加载完自动淡出进场（用户明确不要 START 门）。三个机制：① **日志行**挂 `THREE.DefaultLoadingManager.onProgress`（各模块 loader 都没传自定义 manager，天然全走它；同一 GLB 触发两次——下载完+解析完——seen 集去重；GLB 内嵌贴图以 blob: URL 过 manager，合并一行批量计数）。**懒加载资源必须隔离**：Bookshelf 封面已改私有 `new THREE.LoadingManager()`，否则进场后取书会让日志"复活"，新懒加载资源照办。② **完成收口不用 manager.onLoad**（GLTF 解析间隙会误触发，且 XPScreen 截图纹理在 GLB 解析回调里才开始加载）——各模块暴露 `ready` Promise（ComputerZone 含 XPScreen、TVZone、MarioTV ROM），`Loading.start()` 依次 await；**约定：加载失败也要 resolve**（打 FAIL/NOT FOUND 行），绝不能卡死开机；新增加载类模块记得暴露 ready 并加进 start()。③ **shader 预热**：遮罩盖着时把 nightMix 拨 1 再拨回 0，让生产渲染路径自己走过 spot 灯开启（mix≈0.006）和 composer（0.02）两个阈值，三套程序变体（夜间 composer+spot 影、回程 0.006~0.02 带内直渲+spot、白天直渲）全编译掉——**首次拖日夜滑杆卡一下就是这 3.8s 主线程编译（RTX 5060 实测），已消化进 BIOS**；进场后拨夜间程序数 77→77 零新编译（Playwright 断言过）。勿换成 `compileAsync` 单点预热：盖不住 shadow pass 和 composer 变体。本地全缓存开机全程 ≈16s（隐藏编译 3.8s + 预热往返 4.5s + 日志节奏），慢服务器上下载期间日志本来就在滚，表演时间与下载重叠不白等。
 - **贴图色彩**：颜色贴图要设 `colorSpace = THREE.SRGBColorSpace`，bumpMap 不设（保持线性）。
 - **环境光照 IBL**：`Environment.setEnvironment()` 用 `RoomEnvironment` + PMREM 生成 `scene.environment`。没有它，GLB 里高金属度的 PBR 材质（椅子、机箱玻璃等）会渲染成死黑——"模型太黑"优先查这个。强度走 `scene.environmentIntensity`，随日夜插值（白天 0.5 / 夜晚 0.08）。**房间壳体（墙/地板）材质设了 `envMapIntensity: 0.1`**——环境反射只给家具吃，房间亮度交给半球光+太阳光，否则整屋被均匀提亮、失去自然光方向感（用户反馈过一次）。
 - **椅子摇摆**：`ComputerZone.setChairSwivel()`——轮子(Object_141)和五星脚(Object_144)固定，其余座椅网格 `attach()` 进一个以五星脚包围盒中心为原点的 pivot 组，`update()` 里 `sin(elapsed × 0.0006) × 0.35` 绕 Y 摆动。**注意 Object_140 一个网格里混着座椅塑料件和轮叉/轮轴**，`splitChairBase()` 在运行时按三角形重心（低于五星脚顶、离转轴远→底座）把它切成两个网格，切出来的 `Object_140_base` 留在固定组。以后拆动画部件遇到"一个网格混两种部件"照这个套路。
@@ -145,4 +147,6 @@ Room_Portfolio 关键实现文件（照抄交互流程用）：
 6. [ ] **XP 里加 ChatGPT 应用**（在 `xp/` 里仿照 Notepad 加聊天窗口组件 + Node/Express 后端代理，改完 `npm run build:xp` 重新构建即可，3D 侧不用动）
 7. [x] **夜间灯光优化**（2026-07 完成，4 个提交对应 4 步）：落地灯（FloorLamp.js，点光落地 + 夜间 spot 软影）、发光窗（WallWindow.js，HDR 玻璃 + RectAreaLight）、实体夜灯（DeskGlow.js LED 呼吸灯带 + 台灯，屏幕夜间渐亮 1.35）、Bloom 后期（Renderer 双路径，白天直渲零开销）。实现细节与三个陷阱（scene.background、GLB 失控 emissive、A/B 测量的 shader 重编译）见"关键实现说明"。610M 实测夜间 31.7fps 与白天持平。遗留：
    - [ ] 灯具位置/颜色强度都是文件顶部常量，用户看过实际效果后可微调
+8. [x] **BIOS 加载屏**（2026-07 完成）：`Loading.js` 仿开机自检——真实资源日志逐行打印、各模块 ready Promise 收口、日夜往返 shader 预热（首次拖滑杆的编译卡顿消化进 BIOS）、加载完自动淡出进场（无 START 门，用户已定）。机制与陷阱见"关键实现说明"的"BIOS 加载屏"条。遗留：
+   - [ ] BIOS 文案（厂商行、Memory 数字等）纯装饰，用户可随喜好改 `Loading.js` 顶部与 pushPostLines()
 - [ ] 墙色可选改成参考图的"白 + 玫红"双色方案（用户尚未决定）

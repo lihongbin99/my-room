@@ -18,10 +18,43 @@
       color: rgba(255, 255, 255, 0.35); text-decoration: none;
     }
     .beian a:hover { color: rgba(255, 255, 255, 0.7); }
+
+    /* 仿 BIOS 开机自检加载屏：静态标记写在 HTML 里，JS/模型加载前就能看到第一行 */
+    .bios {
+      position: fixed; inset: 0; z-index: 10010; /* 要盖住 stats.js 面板（默认 z-index 10000） */
+      background: #050505;
+      padding: 28px 34px;
+      font: 15px/1.55 Consolas, "Courier New", monospace;
+      color: #35e065;
+      text-shadow: 0 0 6px rgba(53, 224, 101, 0.45);
+      overflow: hidden;
+      cursor: default;
+      transition: opacity 0.7s ease;
+    }
+    /* 扫描线：拉满复古 CRT 感，纯 CSS 无额外资源 */
+    .bios::after {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom, transparent 0 2px, rgba(0, 0, 0, 0.22) 2px 4px
+      );
+    }
+    .bios.bios-hide { opacity: 0; pointer-events: none; }
+    .bios-line { white-space: pre-wrap; word-break: break-all; min-height: 1.55em; }
+    .bios-cursor {
+      display: inline-block; width: 0.62em; height: 1.1em;
+      background: #35e065; vertical-align: text-bottom;
+      animation: bios-blink 0.9s steps(1) infinite;
+    }
+    @keyframes bios-blink { 50% { opacity: 0; } }
+    @media (max-width: 640px) { .bios { font-size: 12px; padding: 18px 16px; } }
   </style>
 </head>
 <body>
   <canvas class="webgl"></canvas>
+  <div class="bios" id="bios">
+    <div id="bios-log"><div class="bios-line">HB-BIOS (C)2026 My Room, Rev 1.0</div></div>
+    <span class="bios-cursor" id="bios-cursor"></span>
+  </div>
   <footer class="beian">
     <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">粤ICP备2024192526号-1</a>
   </footer>

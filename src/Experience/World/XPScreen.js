@@ -64,11 +64,20 @@ export default class XPScreen {
     mesh.position.copy(this.screenCenter)
     this.scene.add(mesh)
 
-    new THREE.TextureLoader().load('/xp-desktop.webp', (texture) => {
-      texture.colorSpace = THREE.SRGBColorSpace
-      texture.anisotropy = 4
-      this.material.map = texture
-      this.material.needsUpdate = true
+    // ready 给 Loading（BIOS 开机屏）收口用；失败留待机图即可，不卡开机
+    this.ready = new Promise((resolve) => {
+      new THREE.TextureLoader().load(
+        '/xp-desktop.webp',
+        (texture) => {
+          texture.colorSpace = THREE.SRGBColorSpace
+          texture.anisotropy = 4
+          this.material.map = texture
+          this.material.needsUpdate = true
+          resolve()
+        },
+        undefined,
+        () => resolve()
+      )
     })
   }
 

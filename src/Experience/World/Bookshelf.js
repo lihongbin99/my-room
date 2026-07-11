@@ -54,7 +54,8 @@ export default class Bookshelf {
     this.focused = false // 聚焦态才能取书/还书；默认态悬停/点击的对象是整个书架
     this.mouse = null
     this.downId = null
-    this.textureLoader = new THREE.TextureLoader()
+    // 私有 manager：封面是聚焦后才懒加载的，别混进 DefaultLoadingManager 污染 BIOS 开机日志
+    this.textureLoader = new THREE.TextureLoader(new THREE.LoadingManager())
 
     this.group = new THREE.Group()
     this.group.position.set(WALL_INNER_X + CASE_D / 2, 0, CASE_Z)

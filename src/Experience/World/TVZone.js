@@ -23,7 +23,10 @@ export default class TVZone {
     this.group = new THREE.Group()
     this.scene.add(this.group)
 
-    this.setup()
+    // ready 给 Loading（BIOS 开机屏）收口用：5 个 GLB 加载装配完成
+    this.ready = this.setup().catch((error) => {
+      console.error('电视区模型加载失败：', error)
+    })
   }
 
   async setup() {

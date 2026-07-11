@@ -22,12 +22,24 @@ export default class ComputerZone {
     this.group = new THREE.Group()
     this.scene.add(this.group)
 
-    new GLTFLoader().load('/models/computer-zone.glb', (gltf) => {
-      this.setModel(gltf.scene)
-      this.setChairSwivel(gltf.scene)
-      this.shiftDeskToCorner(gltf.scene)
-      this.nudgeChair(gltf.scene)
-      this.xpScreen = new XPScreen(gltf.scene) // 定位屏幕要在桌子推进墙角之后
+    // ready 给 Loading（BIOS 开机屏）收口用：GLB 解析装配完 + XP 截图纹理也到位才算就绪
+    this.ready = new Promise((resolve) => {
+      new GLTFLoader().load(
+        '/models/computer-zone.glb',
+        (gltf) => {
+          this.setModel(gltf.scene)
+          this.setChairSwivel(gltf.scene)
+          this.shiftDeskToCorner(gltf.scene)
+          this.nudgeChair(gltf.scene)
+          this.xpScreen = new XPScreen(gltf.scene) // 定位屏幕要在桌子推进墙角之后
+          resolve(this.xpScreen.ready)
+        },
+        undefined,
+        (error) => {
+          console.error('电脑区模型加载失败：', error)
+          resolve() // 加载失败也不能卡死开机流程
+        }
+      )
     })
   }
 
