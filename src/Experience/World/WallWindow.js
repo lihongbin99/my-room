@@ -6,7 +6,7 @@ import Experience from '../Experience.js'
 // 白天透暖阳、夜里冷蓝月光（配色照 Room_Portfolio 的窗户 HDR 色收敛而来）
 // 面光源不投影（three 不支持），影子由落地灯 spot 负责——两步捆绑的原因
 const WALL_INNER_Z = -4 + 0.35 // 后墙内侧面
-const CENTER = { x: 0.4, y: 3.3 } // 窗心：电脑区与电视区之间的墙面上部空档（显示器顶≈2.7、电视顶≈2.2）
+const CENTER = { x: -1.92, y: 3.6 } // 窗心：电脑桌正上方（桌组实测 x∈[-3.65,-0.19]；显示器顶 2.7，窗框底 2.88 留空隙）。电视上方让位给挂画 WallPainting
 const PANE = { w: 1.8, h: 1.3 } // 玻璃发光面
 const FRAME_T = 0.07 // 框条截面
 const FRAME_D = 0.05 // 框条凸出墙面的厚度

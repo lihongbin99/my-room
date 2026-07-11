@@ -6,6 +6,7 @@ import TVZone from './TVZone.js'
 import Bookshelf from './Bookshelf.js'
 import FloorLamp from './FloorLamp.js'
 import WallWindow from './WallWindow.js'
+import WallPainting from './WallPainting.js'
 import DeskGlow from './DeskGlow.js'
 
 export default class World {
@@ -20,6 +21,7 @@ export default class World {
     this.environment = new Environment()
     this.floorLamp = new FloorLamp()
     this.wallWindow = new WallWindow()
+    this.wallPainting = new WallPainting()
     this.deskGlow = new DeskGlow()
   }
 
@@ -27,6 +29,7 @@ export default class World {
     this.environment.update()
     this.floorLamp.update() // 在 environment 之后：读当帧最新 currentMix
     this.wallWindow.update()
+    this.wallPainting.update()
     this.deskGlow.update()
     this.computerZone.update()
     this.bookshelf.update()

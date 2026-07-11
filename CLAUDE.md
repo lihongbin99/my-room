@@ -38,7 +38,8 @@ src/
       Bookshelf.js               # 左墙书架 + 书 + 年份分隔盒 + 取书/放回动效（全程序化，无模型）
       booksData.js               # 读书记录数据，同步自 ..\book 项目的 books.js；封面图在 public/books/
       FloorLamp.js               # 沙发旁落地灯（程序化几何 + 暖点光 + 夜间投影 spot）
-      WallWindow.js              # 后墙发光窗（HDR 玻璃 + RectAreaLight，白天暖阳夜里冷月）
+      WallWindow.js              # 后墙发光窗（HDR 玻璃 + RectAreaLight，白天暖阳夜里冷月；在电脑桌正上方）
+      WallPainting.js            # 电视上方的宽幅挂画（婚纱照，金框+卡纸+夜间微自发光；照片源图在 Downloads，压缩产物 public/paintings/wedding.webp）
       DeskGlow.js                # 桌面夜灯（LED 呼吸灯带 + 桌角小台灯）
     Utils/
       EventEmitter.js / Sizes.js / Time.js

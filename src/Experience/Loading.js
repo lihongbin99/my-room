@@ -167,6 +167,9 @@ export default class Loading {
     const hasRom = await (world.tvZone.marioTV?.ready ?? Promise.resolve(false))
     this.push(this.pad('NES cartridge') + (hasRom ? 'OK' : 'NOT FOUND'))
 
+    const hasPhoto = await (world.wallPainting?.ready ?? Promise.resolve(false))
+    this.push(this.pad('Wall art') + (hasPhoto ? 'OK' : 'NOT FOUND'))
+
     const volumes = BOOKS.filter((b) => b.finished).length
     this.push(this.pad('Bookshelf') + `${volumes} volumes OK`)
 
