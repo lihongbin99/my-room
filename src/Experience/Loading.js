@@ -161,6 +161,11 @@ export default class Loading {
 
     await world.computerZone.ready
     this.push(this.pad('Workstation') + 'READY')
+
+    const props = await (world.deskProps?.ready ?? Promise.resolve({}))
+    this.push(this.pad('USB audio device') + (props.headphones ? 'READY' : 'NOT FOUND'))
+    this.push(this.pad('Coffee') + (props.mug ? 'HOT' : 'NOT FOUND')) // 经典 BIOS 玩笑：Coffee ... HOT
+
     await world.tvZone.ready
     this.push(this.pad('TV bench') + 'READY')
 

@@ -8,6 +8,7 @@ import FloorLamp from './FloorLamp.js'
 import WallWindow from './WallWindow.js'
 import WallPainting from './WallPainting.js'
 import DeskGlow from './DeskGlow.js'
+import DeskProps from './DeskProps.js'
 
 export default class World {
   constructor() {
@@ -23,6 +24,7 @@ export default class World {
     this.wallWindow = new WallWindow()
     this.wallPainting = new WallPainting()
     this.deskGlow = new DeskGlow()
+    this.deskProps = new DeskProps()
   }
 
   update() {
@@ -31,6 +33,7 @@ export default class World {
     this.wallWindow.update()
     this.wallPainting.update()
     this.deskGlow.update()
+    this.deskProps.update()
     this.computerZone.update()
     this.bookshelf.update()
     this.tvZone.update() // 放在 bookshelf 之后：光标样式让后写的（电视悬停）赢
