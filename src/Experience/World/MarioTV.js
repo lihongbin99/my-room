@@ -20,6 +20,7 @@ const CANVAS_H = 480 // 屏幕画布高度（宽按屏幕比例算），NES 画�
 
 const OUTLINE_PAD = 0.08 // 悬停描边外壳比电视包围盒大出的量
 const CLICK_SLOP = 7 // 按下/抬起累计位移小于该像素数才算点击（区分拖拽）
+const CLICK_SLOP_TOUCH = 12 // 触屏手指抖动大，阈值放宽，否则点按易被误判成拖拽而漏点
 const FOCUS_PHI = Math.PI * 0.47 // 聚焦极角：比屏幕中心略高一点俯视，过渡不那么陡
 const FOCUS_THETA = 0 // 聚焦方位角：从 +z 正对后墙上的屏幕
 const FOCUS_PAD = 0.15 // 取景时屏幕四周留的余量
@@ -232,6 +233,7 @@ export default class MarioTV {
       if (this.downId !== null) return
       this.downId = event.pointerId
       this.moved = 0
+      this.clickSlop = event.pointerType === 'mouse' ? CLICK_SLOP : CLICK_SLOP_TOUCH
       this.pointerX = event.clientX
       this.pointerY = event.clientY
     })
@@ -247,7 +249,8 @@ export default class MarioTV {
     const onPointerUp = (event) => {
       if (this.downId !== event.pointerId) return
       this.downId = null
-      if (this.moved >= CLICK_SLOP) return
+      // pointercancel（触屏被系统手势/来电打断）只收尾不算点击
+      if (event.type === 'pointercancel' || this.moved >= this.clickSlop) return
       if (!this.focused) {
         // 默认态：点到电视 → 聚焦（导航已被别的区聚焦时不抢）
         if (!this.navigation.savedView && this.raycastHull(event.clientX, event.clientY)) {

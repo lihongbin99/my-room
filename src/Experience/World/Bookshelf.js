@@ -26,6 +26,7 @@ const YEAR_BOX = { w: 0.3, h: 0.46, d: 0.42 } // 年份分隔盒
 const HOVER_OUT = 0.16 // 悬停时书滑出的距离
 const PULL_OUT = 0.5 // 取书第一段抽出的距离
 const CLICK_SLOP = 7 // 按下/抬起累计位移小于该像素数才算点击（区分拖拽）
+const CLICK_SLOP_TOUCH = 12 // 触屏手指抖动大，阈值放宽，否则点按易被误判成拖拽而漏点
 
 // 聚焦机位（仿 Room_Portfolio 的两态交互：默认态悬停描边/点击聚焦，聚焦态才能取书）
 const OUTLINE_PAD = 0.1 // 白色描边外壳比书架包围盒大出的量
@@ -677,6 +678,7 @@ export default class Bookshelf {
       if (this.downId !== null) return
       this.downId = event.pointerId
       this.moved = 0
+      this.clickSlop = event.pointerType === 'mouse' ? CLICK_SLOP : CLICK_SLOP_TOUCH
       this.pointerX = event.clientX
       this.pointerY = event.clientY
       this.canvas.setPointerCapture(event.pointerId)
@@ -704,12 +706,14 @@ export default class Bookshelf {
     const onPointerUp = (event) => {
       if (this.downId !== event.pointerId) return
       this.downId = null
+      // pointercancel（触屏被系统手势/来电打断）只收尾不算点击
+      const isClick = event.type !== 'pointercancel' && this.moved < this.clickSlop
       if (this.held) {
         this.held.dragging = false
-        if (this.moved < CLICK_SLOP) this.returnBook()
+        if (isClick) this.returnBook()
         return
       }
-      if (this.moved >= CLICK_SLOP) return
+      if (!isClick) return
       if (!this.focused) {
         // 默认态：点到书架任意处 → 聚焦（导航已被别的区聚焦时不抢）
         if (!this.navigation.savedView && this.raycastHull(event.clientX, event.clientY)) {

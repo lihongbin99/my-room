@@ -70,7 +70,7 @@ reference/
 
 ## 关键实现说明
 
-- **相机手感**：`Navigation.js` 的核心是"拖动只改目标球坐标，每帧以 `0.005 × delta(ms)` 指数插值追赶"，产生缓入缓出的跟随感。事件绑定在 canvas 上（不是 window），避免挡住 HTML 面板。左键旋转、滚轮缩放、右键/Ctrl/Shift/双指平移，均有范围限制。
+- **相机手感**：`Navigation.js` 的核心是"拖动只改目标球坐标，每帧以 `0.005 × delta(ms)` 指数插值追赶"，产生缓入缓出的跟随感。事件绑定在 canvas 上（不是 window），避免挡住 HTML 面板。鼠标：左键旋转、滚轮缩放、右键/Ctrl/Shift 平移；触屏：单指旋转、双指捏合缩放 + 中点平移（OrbitControls 同款语义，捏合是比例式 `radius *= 上帧距离/当前距离`，每帧滚动基准）。输入统一走 Pointer Events，按 pointerId 自维护指针表（Pointer Events 没有 touches 列表），`pointercancel` 必须当抬起处理；**canvas 的 `touch-action:none`（index.html）不能删**——没有它浏览器把触摸判成滚动后会发 pointercancel 收走指针，触屏拖两下就断。均有范围限制。
 - **房间坐标**：地板 8×8，墙高 5，厚 0.35（`Room.js` 顶部常量）。墙角在 (-4, y, -4)；后墙（z=-4，对应参考图的红墙位）、左墙（x=-4，对应白墙位）。相机限制在 +x/+z 象限，看不到墙背面。
 - **地板贴图**：程序化 canvas 生成，样式对照 Room_Portfolio——板条沿 z 轴（画面右上→左下）、整间约 10 块板（`cols`）、随机错缝分段、浅沙色低饱和。接缝画成"深色凹槽+亮边"，配同构灰度 bumpMap（`bumpScale: 0.12`）模拟倒角受光。注意：分段必须从 0 开始填色，否则板头留透明区渲染成黑块（修过一次）。
 - **日夜切换**：`Environment.js` 里 DAY/NIGHT 两套参数（背景色、半球光、主光颜色/强度），`setNightMix(0~1)` 设目标值，`update()` 每帧缓动，所以滑杆停在中间就是黄昏。滑杆 UI 在 `ThemePanel.js`。缓动收敛后要钉到目标值再决定 apply——低帧率（大 delta）下一步跳到目标，"差值超阈值才 apply"会跳过最后一次应用（修过一次）。**新夜灯模块不进 Environment**：各自在 `update()` 里读 `environment.currentMix` 自行插值（文件顶部自带 DAY/NIGHT 常量 + lastMix 早退），Environment 仍是唯一缓动驱动者；World.update 里必须排在 `environment.update()` 之后。
@@ -149,4 +149,8 @@ Room_Portfolio 关键实现文件（照抄交互流程用）：
    - [ ] 灯具位置/颜色强度都是文件顶部常量，用户看过实际效果后可微调
 8. [x] **BIOS 加载屏**（2026-07 完成）：`Loading.js` 仿开机自检——真实资源日志逐行打印、各模块 ready Promise 收口、日夜往返 shader 预热（首次拖滑杆的编译卡顿消化进 BIOS）、加载完自动淡出进场（无 START 门，用户已定）。机制与陷阱见"关键实现说明"的"BIOS 加载屏"条。遗留：
    - [ ] BIOS 文案（厂商行、Memory 数字等）纯装饰，用户可随喜好改 `Loading.js` 顶部与 pushPostLines()
+9. [ ] **手机触屏适配**（2026-07 调研定案，方案依据：OrbitControls 源码语义 + 四个知名 3D 作品集源码取证；参考原版 my-room-in-3d 触屏无捏合缩放，此项是超出原版的改进）：
+   - [x] 第一档·核心手势（2026-07 完成）：Navigation 重写为 Pointer Events（单指旋转/双指捏合缩放+中点平移，见"相机手感"条）；index.html 补 `touch-action:none`、viewport `user-scalable=no, viewport-fit=cover`、`overscroll-behavior:none`、`gesturestart` preventDefault（iOS 双指分落不同元素的漏网保险）；三个区 CLICK_SLOP 触屏放宽 7→12px、pointercancel 不再误判为点击。Playwright CDP 触摸模拟 8 项全过（旋转/捏合两向/平移正交性/点击聚焦与退出/鼠标滚轮回归）
+   - [ ] 第二档·稳定性与性能：书架 4096 图集出 2048 移动版（**iPhone 典型 MAX_TEXTURE_SIZE=4096 压线，超限不报错直接杀 tab**）；`(pointer:coarse)` 检测 → 低档机 pixelRatio 封 1、阴影 512、夜间不进 Bloom composer（现有双路径条件多 && 一个档位判断即可）；竖屏锁水平 FOV（`vFov=2·atan(tan(hFov/2)/aspect)`，聚焦取景公式同步用 hFOV；不做"请横屏"遮罩——WCAG F100 失败项）
+   - [ ] 第三档·体验补齐：移动端 XP 不挂 CSS3D iframe（WebKit transform-iframe 模糊 12 年未修 + winXP fork 零触摸支持），保持截图纹理+提示桌面体验；触屏下给三个可点区加常亮提示（替代 hover 描边，NN/g 推荐）；移动端 NES 聚焦才开机（省主线程 CPU）；canvas 自带 MSAA 在移动 tile GPU 近乎免费，**保留勿换 FXAA**
 - [ ] 墙色可选改成参考图的"白 + 玫红"双色方案（用户尚未决定）

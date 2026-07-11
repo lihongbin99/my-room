@@ -18,6 +18,7 @@ const IFRAME_PX_W = 1280 // iframe 像素宽（高按屏幕比例算），winXP 
 
 const OUTLINE_PAD = 0.06 // 悬停描边外壳比机身包围盒大出的量
 const CLICK_SLOP = 7 // 按下/抬起累计位移小于该像素数才算点击（区分拖拽）
+const CLICK_SLOP_TOUCH = 12 // 触屏手指抖动大，阈值放宽，否则点按易被误判成拖拽而漏点
 const FOCUS_PHI = Math.PI * 0.48 // 聚焦极角：接近平视，略俯
 const FOCUS_THETA = 0 // 从 +z 正对后墙上的屏幕
 const FOCUS_PAD = 0.12 // 取景时屏幕四周留的余量
@@ -182,6 +183,7 @@ export default class XPScreen {
       if (this.downId !== null) return
       this.downId = event.pointerId
       this.moved = 0
+      this.clickSlop = event.pointerType === 'mouse' ? CLICK_SLOP : CLICK_SLOP_TOUCH
       this.pointerX = event.clientX
       this.pointerY = event.clientY
     })
@@ -197,7 +199,8 @@ export default class XPScreen {
     const onPointerUp = (event) => {
       if (this.downId !== event.pointerId) return
       this.downId = null
-      if (this.moved >= CLICK_SLOP) return
+      // pointercancel（触屏被系统手势/来电打断）只收尾不算点击
+      if (event.type === 'pointercancel' || this.moved >= this.clickSlop) return
       if (!this.focused) {
         // 默认态：点到显示器 → 聚焦（导航已被别的区聚焦时不抢）
         if (!this.navigation.savedView && this.raycastHull(event.clientX, event.clientY)) {

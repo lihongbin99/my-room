@@ -47,12 +47,13 @@ export default class Navigation {
       delta: { x: 0, y: 0 },
       previous: { x: 0, y: 0 },
       sensitivity: 1.2,
-      alternative: false, // 右键/双指：平移视点而非旋转
+      alternative: false, // 右键/Ctrl/Shift/双指：平移视点而非旋转
     }
 
     this.view.zoom = {
       sensitivity: 0.01,
-      delta: 0,
+      delta: 0, // 滚轮：加性像素增量
+      pinchRatio: 1, // 双指捏合：radius 乘数（比例式，与两指初始张开度无关），update() 消费后归 1
     }
 
     this.view.down = (x, y) => {
@@ -67,43 +68,73 @@ export default class Navigation {
       this.view.drag.previous.y = y
     }
 
-    // 鼠标
-    this.onMouseDown = (event) => {
-      event.preventDefault()
-      if (!this.enabled) return
-      this.view.drag.alternative =
-        event.button === 2 || event.button === 1 || event.ctrlKey || event.shiftKey
-      this.view.down(event.clientX, event.clientY)
-      window.addEventListener('mousemove', this.onMouseMove)
-      window.addEventListener('mouseup', this.onMouseUp)
-    }
-    this.onMouseMove = (event) => {
-      this.view.move(event.clientX, event.clientY)
-    }
-    this.onMouseUp = () => {
-      window.removeEventListener('mousemove', this.onMouseMove)
-      window.removeEventListener('mouseup', this.onMouseUp)
-    }
-    this.canvas.addEventListener('mousedown', this.onMouseDown)
+    // 指针输入统一走 Pointer Events（鼠标/触摸同一管线）。多点触控要自己按
+    // pointerId 维护指针表——Pointer Events 没有 touches 列表。手势语义照
+    // OrbitControls：单指旋转；双指捏合缩放 + 中点平移同时进行，捏合用
+    // "上帧距离/当前距离"的比例每帧滚动基准，不与手势起点比。
+    this.pointers = new Map() // pointerId -> { x, y, type }
+    this.pinchDist = 0 // 上一帧双指距离（0 = 未在捏合）
 
-    // 触摸
-    this.onTouchStart = (event) => {
+    // 指针数变化（第二指落下/抬起）后重置拖拽基准与手势模式，避免基准跳变让画面猛跳
+    this.syncGesture = () => {
+      const pts = [...this.pointers.values()]
+      if (pts.length >= 2) {
+        this.view.drag.alternative = true
+        this.view.down((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2)
+        this.pinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+      } else {
+        if (pts.length === 1) {
+          // 触摸回到单指 → 旋转；鼠标的 alternative 由按键决定，不在这里动
+          if (pts[0].type !== 'mouse') this.view.drag.alternative = false
+          this.view.down(pts[0].x, pts[0].y)
+        }
+        this.pinchDist = 0
+      }
+    }
+
+    this.onPointerDown = (event) => {
       event.preventDefault()
       if (!this.enabled) return
-      this.view.drag.alternative = event.touches.length > 1
-      this.view.down(event.touches[0].clientX, event.touches[0].clientY)
-      window.addEventListener('touchmove', this.onTouchMove, { passive: false })
-      window.addEventListener('touchend', this.onTouchEnd)
+      if (event.pointerType === 'mouse') {
+        this.view.drag.alternative =
+          event.button === 2 || event.button === 1 || event.ctrlKey || event.shiftKey
+      }
+      this.canvas.setPointerCapture(event.pointerId) // 鼠标划出画布不丢事件；触摸本就隐式 capture
+      this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, type: event.pointerType })
+      this.syncGesture()
     }
-    this.onTouchMove = (event) => {
-      event.preventDefault()
-      this.view.move(event.touches[0].clientX, event.touches[0].clientY)
+
+    this.onPointerMove = (event) => {
+      const p = this.pointers.get(event.pointerId)
+      if (!p) return
+      p.x = event.clientX
+      p.y = event.clientY
+      const pts = [...this.pointers.values()]
+      if (pts.length >= 2) {
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+        if (this.pinchDist > 0 && dist > 0) this.view.zoom.pinchRatio *= this.pinchDist / dist
+        this.pinchDist = dist
+        this.view.move((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2)
+      } else {
+        this.view.move(p.x, p.y)
+      }
     }
-    this.onTouchEnd = () => {
-      window.removeEventListener('touchmove', this.onTouchMove)
-      window.removeEventListener('touchend', this.onTouchEnd)
+
+    // pointercancel 必须与 pointerup 同路：不设 touch-action:none 时浏览器判定滚动会
+    // 收走指针，iOS 来电/旋屏也会触发——漏处理就是"拖两下手势死掉"
+    this.onPointerUp = (event) => {
+      if (!this.pointers.has(event.pointerId)) return
+      this.pointers.delete(event.pointerId)
+      this.syncGesture()
     }
-    this.canvas.addEventListener('touchstart', this.onTouchStart, { passive: false })
+
+    this.canvas.addEventListener('pointerdown', this.onPointerDown)
+    this.canvas.addEventListener('pointermove', this.onPointerMove)
+    this.canvas.addEventListener('pointerup', this.onPointerUp)
+    this.canvas.addEventListener('pointercancel', this.onPointerUp)
+
+    // iOS 保险：两指分落不同元素时 touch-action 有漏网报告，拦掉 WebKit 私有捏合手势
+    document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false })
 
     // 滚轮缩放
     this.onWheel = (event) => {
@@ -155,8 +186,9 @@ export default class Navigation {
   update() {
     const view = this.view
 
-    // 缩放
+    // 缩放：滚轮加性、捏合乘性，都只改目标值，平滑交给下方指数插值
     view.spherical.value.radius += view.zoom.delta * view.zoom.sensitivity
+    view.spherical.value.radius *= view.zoom.pinchRatio
     view.spherical.value.radius = THREE.MathUtils.clamp(
       view.spherical.value.radius,
       view.spherical.limits.radius.min,
@@ -188,6 +220,7 @@ export default class Navigation {
     view.drag.delta.x = 0
     view.drag.delta.y = 0
     view.zoom.delta = 0
+    view.zoom.pinchRatio = 1
 
     // 指数平滑：产生缓入缓出的跟随手感
     const factor = Math.min(1, view.spherical.smoothing * this.time.delta)
