@@ -99,10 +99,8 @@ export default class MarioTV {
     this.texture.anisotropy = 4
 
     // 屏幕自己发光（不吃场景光照），toneMapped 关掉保持画面原色
-    const mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(this.screenW, this.screenH),
-      new THREE.MeshBasicMaterial({ map: this.texture, toneMapped: false })
-    )
+    this.screenMaterial = new THREE.MeshBasicMaterial({ map: this.texture, toneMapped: false })
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(this.screenW, this.screenH), this.screenMaterial)
     mesh.position.copy(this.screenCenter)
     this.scene.add(mesh)
 
@@ -443,6 +441,10 @@ export default class MarioTV {
   /* ---------- 逐帧 ---------- */
 
   update() {
+    // 夜里屏幕渐亮到 1.35（>Bloom 阈值 1.15，微微泛光——"暗房里电视在发光"）
+    const mix = this.experience.world?.environment?.currentMix ?? 0
+    this.screenMaterial.color.setScalar(THREE.MathUtils.lerp(1.0, 1.35, mix))
+
     // 默认态悬停描边（导航被任何区聚焦时都不响应）
     if (this.mouse && this.downId === null && !this.focused) {
       const hovering = !this.navigation.savedView && this.raycastHull(this.mouse.x, this.mouse.y)

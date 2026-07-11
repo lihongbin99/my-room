@@ -6,6 +6,7 @@ import TVZone from './TVZone.js'
 import Bookshelf from './Bookshelf.js'
 import FloorLamp from './FloorLamp.js'
 import WallWindow from './WallWindow.js'
+import DeskGlow from './DeskGlow.js'
 
 export default class World {
   constructor() {
@@ -19,12 +20,14 @@ export default class World {
     this.environment = new Environment()
     this.floorLamp = new FloorLamp()
     this.wallWindow = new WallWindow()
+    this.deskGlow = new DeskGlow()
   }
 
   update() {
     this.environment.update()
     this.floorLamp.update() // 在 environment 之后：读当帧最新 currentMix
     this.wallWindow.update()
+    this.deskGlow.update()
     this.computerZone.update()
     this.bookshelf.update()
     this.tvZone.update() // 放在 bookshelf 之后：光标样式让后写的（电视悬停）赢
