@@ -23,7 +23,7 @@ src/
     Experience.js                # 单例，组装 Sizes/Time/Camera/Navigation/Renderer/World/ThemePanel
     Camera.js                    # 透视相机（无控制逻辑，移动全在 Navigation）
     Navigation.js                # 相机拖拽/缩放/平移，移植自 my-room-in-3d；含通用聚焦 focus()/blur()
-    Renderer.js                  # WebGLRenderer：ACES 色调映射、PCFSoft 阴影
+    Renderer.js                  # WebGLRenderer：ACES 色调映射、PCFSoft 阴影；夜间切 EffectComposer+Bloom 双路径
     CSS3D.js                     # CSS3DRenderer 第二渲染层（iframe 浮层，共用相机；空场景跳过 render）
     ThemePanel.js                # 右上角 ☀️—🌙 日夜滑杆（原生 DOM）
     World/
@@ -36,6 +36,9 @@ src/
       MarioTV.js                 # 电视里可玩的 NES 马里奥（jsnes + CanvasTexture，ROM 自备放 public/roms/）
       Bookshelf.js               # 左墙书架 + 书 + 年份分隔盒 + 取书/放回动效（全程序化，无模型）
       booksData.js               # 读书记录数据，同步自 ..\book 项目的 books.js；封面图在 public/books/
+      FloorLamp.js               # 沙发旁落地灯（程序化几何 + 暖点光 + 夜间投影 spot）
+      WallWindow.js              # 后墙发光窗（HDR 玻璃 + RectAreaLight，白天暖阳夜里冷月）
+      DeskGlow.js                # 桌面夜灯（LED 呼吸灯带 + 桌角小台灯）
     Utils/
       EventEmitter.js / Sizes.js / Time.js
 tools/
@@ -69,11 +72,13 @@ reference/
 - **相机手感**：`Navigation.js` 的核心是"拖动只改目标球坐标，每帧以 `0.005 × delta(ms)` 指数插值追赶"，产生缓入缓出的跟随感。事件绑定在 canvas 上（不是 window），避免挡住 HTML 面板。左键旋转、滚轮缩放、右键/Ctrl/Shift/双指平移，均有范围限制。
 - **房间坐标**：地板 8×8，墙高 5，厚 0.35（`Room.js` 顶部常量）。墙角在 (-4, y, -4)；后墙（z=-4，对应参考图的红墙位）、左墙（x=-4，对应白墙位）。相机限制在 +x/+z 象限，看不到墙背面。
 - **地板贴图**：程序化 canvas 生成，样式对照 Room_Portfolio——板条沿 z 轴（画面右上→左下）、整间约 10 块板（`cols`）、随机错缝分段、浅沙色低饱和。接缝画成"深色凹槽+亮边"，配同构灰度 bumpMap（`bumpScale: 0.12`）模拟倒角受光。注意：分段必须从 0 开始填色，否则板头留透明区渲染成黑块（修过一次）。
-- **日夜切换**：`Environment.js` 里 DAY/NIGHT 两套参数（背景色、半球光、主光颜色/强度、角落暖灯强度），`setNightMix(0~1)` 设目标值，`update()` 每帧缓动，所以滑杆停在中间就是黄昏。滑杆 UI 在 `ThemePanel.js`。
+- **日夜切换**：`Environment.js` 里 DAY/NIGHT 两套参数（背景色、半球光、主光颜色/强度），`setNightMix(0~1)` 设目标值，`update()` 每帧缓动，所以滑杆停在中间就是黄昏。滑杆 UI 在 `ThemePanel.js`。缓动收敛后要钉到目标值再决定 apply——低帧率（大 delta）下一步跳到目标，"差值超阈值才 apply"会跳过最后一次应用（修过一次）。**新夜灯模块不进 Environment**：各自在 `update()` 里读 `environment.currentMix` 自行插值（文件顶部自带 DAY/NIGHT 常量 + lastMix 早退），Environment 仍是唯一缓动驱动者；World.update 里必须排在 `environment.update()` 之后。
+- **夜间灯光**（TODO 7，2026-07 完成）：三个实体夜灯模块 `FloorLamp`（沙发旁落地灯：暖点光从 Environment 迁来 + 夜间向下投影 spot 512 软影，白天 `spot.visible=false` 连阴影 pass 一起省）、`WallWindow`（后墙发光窗：`toneMapped:false` HDR 玻璃白天暖 `(1.6,1.15,.75)` 夜里冷蓝 `(.55,.72,1.9)` + RectAreaLight，LTC 表模块级 init 一次；白天强度压 0.5 勿提亮全屋）、`DeskGlow`（桌前沿冰蓝 LED 呼吸灯带 + 桌角小台灯；**台灯离墙近，点光强度别贪，墙面像素 >1.15 会整片泛光白爆**）。屏幕夜里渐亮：XPScreen/MarioTV 材质 color 随 mix 1.0→1.35。投影灯恒 ≤2（太阳 + 落地灯 spot）。
+- **Bloom 双路径**：`Renderer.js` 里 `currentMix > 0.02` 才走 EffectComposer（RenderPass + UnrealBloom + OutputPass，HalfFloat + samples:4），白天保持直渲（零后期开销 + 画布 MSAA）。阈值 1.15（线性 HDR 域）只放行灯罩 2.6/LED 2.2/月窗 1.9/夜间屏幕 1.35；悬停描边白壳 1.0 不泛光。**⚠️ 清屏色陷阱**：背景必须走 `scene.background`（Color），不能用 `renderer.setClearColor`——后者在调用瞬间按当时绑定的渲染目标定颜色空间编码，composer 下清屏色被二次变换、夜空亮 4 倍（逐像素比对定位过）。**⚠️ GLB 失控 emissive**：Sketchfab 的 KHR_materials_emissive_strength 会带 >1 的发光强度（椅子红件 ×10 夜里炸成红光团），`ComputerZone.setModel()` 已统一钳到 1，以后引入新模型和透射材质一起查。管线切换点仅背景虚空微暗差异，房间内容两路径逐像素一致。
 - **贴图色彩**：颜色贴图要设 `colorSpace = THREE.SRGBColorSpace`，bumpMap 不设（保持线性）。
 - **环境光照 IBL**：`Environment.setEnvironment()` 用 `RoomEnvironment` + PMREM 生成 `scene.environment`。没有它，GLB 里高金属度的 PBR 材质（椅子、机箱玻璃等）会渲染成死黑——"模型太黑"优先查这个。强度走 `scene.environmentIntensity`，随日夜插值（白天 0.5 / 夜晚 0.08）。**房间壳体（墙/地板）材质设了 `envMapIntensity: 0.1`**——环境反射只给家具吃，房间亮度交给半球光+太阳光，否则整屋被均匀提亮、失去自然光方向感（用户反馈过一次）。
 - **椅子摇摆**：`ComputerZone.setChairSwivel()`——轮子(Object_141)和五星脚(Object_144)固定，其余座椅网格 `attach()` 进一个以五星脚包围盒中心为原点的 pivot 组，`update()` 里 `sin(elapsed × 0.0006) × 0.35` 绕 Y 摆动。**注意 Object_140 一个网格里混着座椅塑料件和轮叉/轮轴**，`splitChairBase()` 在运行时按三角形重心（低于五星脚顶、离转轴远→底座）把它切成两个网格，切出来的 `Object_140_base` 留在固定组。以后拆动画部件遇到"一个网格混两种部件"照这个套路。
-- **性能**：pixelRatio 上限 1.5（`Sizes.js`）、阴影贴图 1024、renderer `powerPreference: 'high-performance'`。用户反馈过卡顿，加重型效果（Bloom、更多阴影灯）前先想想帧率。性能基准以核显为准（很多访客是轻薄本；本机可用 Playwright 加 `--use-adapter-luid` 钉在 AMD 610M 上实测，独显 RTX 5060 会 60 帧封顶测不出差异）。
+- **性能**：pixelRatio 上限 1.5（`Sizes.js`）、阴影贴图 1024、renderer `powerPreference: 'high-performance'`。用户反馈过卡顿，加重型效果（Bloom、更多阴影灯）前先想想帧率。性能基准以核显为准（很多访客是轻薄本；本机可用 Playwright 有头模式加 `--use-adapter-luid=0,105591` 钉在 AMD 610M 上实测——LUID 从 chrome://gpu 提取、重启可能变化，无头模式是 SwiftShader 软渲染只能看画面不能测帧率；独显 RTX 5060 会 60 帧封顶测不出差异）。2026-07 夜灯功能实测：白天直渲 31.5 / 夜间全管线（Bloom+spot 阴影+RectArea）31.7，各单项开销均 ≈0。**A/B 开关灯时注意**：灯的 visible 切换会改变灯数量、触发全场景 shader 重编译，等编译完（几秒）再采样，否则测出假回归。
 - **⚠️ 透射材质陷阱**：GLB 里 `transmission > 0` 的 MeshPhysicalMaterial（Sketchfab 玻璃件常见）会让 three 每帧把整个场景先多渲染一遍到缓冲纹理做折射背景——核显上实测占近半帧时间（23→42fps）。`ComputerZone.setModel()` 里已统一降级为普通半透明（transmission=0、opacity+0.13，保留 envMap 反射），肉眼无差。**以后引入新模型要检查透射材质**（`material.transmission > 0` 扫一遍），同样降级处理。2026-07 核显 A/B 实测的其余开销：全局关阴影 +6fps（视觉代价大，未动）、停 NES 模拟器 +6fps（自动开机是用户要求，未动；日后可考虑挪 Web Worker）、其余单项（椅子、桌面、书架合并后）均 ≤1fps。
 - **调试**：`window.experience` 已挂到全局，控制台可直接调相机（`experience.navigation.view.target.value.set(...)` 等）、灯光参数。
 - **模型工作流**：Sketchfab 等下载的原始 GLB 放 `models-src/`（勿放 public/，44MB 的原始文件会被打进 dist）。先 `node tools/dump-tree.mjs <src>` 看完整层级 + 包围盒，再用 `node tools/prune-glb.mjs <src> <out> --keep "名1,名2"` 裁剪 + 自动压缩（减面 50%、顶点量化、贴图转 1024 WebP）输出到 `public/models/`。电脑区模型 44.66MB → 3.54MB，电视区 5 件共 5MB → 0.73MB。注意 sharp 必须用 0.33.x（0.35 在本机 win32 加载失败）。prune 工具会自动从场景根沿"独子包装链"下钻（兼容 `GLTF_SceneRootNode` 和 FBX/OBJ 转换的 `Sketchfab_model > xxx.fbx > RootNode` 两种层级），`--keep` 匹配的是下钻后那层的子节点名。
@@ -138,8 +143,6 @@ Room_Portfolio 关键实现文件（照抄交互流程用）：
 5. [x] **电视装可玩的超级马里奥**：`World/MarioTV.js`，jsnes + CanvasTexture 路线（不走 CSS3D）。进页面自动开机播标题/演示；两态交互同书架：悬停白描边、点击聚焦（机位带房间上下文）开声音和键盘、ESC/点屏幕外退出=静音继续播。已用 Playwright 全流程验证（自动开机/聚焦取景/Start 开局/键盘转发/退出静音/书架互斥）。遗留：
    - [ ] ROM 已在本机 `public/roms/mario.nes`，但 git 忽略不入库（用户已表示不管版权，若想随仓库走，删掉 .gitignore 里 `public/roms/*.nes` 那行即可）；**部署时记得把它一并上传**
 6. [ ] **XP 里加 ChatGPT 应用**（在 `xp/` 里仿照 Notepad 加聊天窗口组件 + Node/Express 后端代理，改完 `npm run build:xp` 重新构建即可，3D 侧不用动）
-7. [ ] **夜间灯光优化**（已讨论定案，留到最后做，分三步）：
-   1. 占位落地灯：灯杆 + 自发光灯罩球，把 `Environment.js` 里浮空的暖色点光（现在在 (-2, 3.2, -2)）移到灯罩位置（离地约 1.5），并开小尺寸阴影贴图——解决"光没有来源、夜间无影子"的问题
-   2. 发光窗户：后墙加自发光面板 + RectAreaLight 面光源（白天当窗、夜里当柔和环境光；面光源不投影，需与 1 搭配）
-   3. 家具进场后：夜间光挂到实体上——显示器 emissive、桌底 LED 灯带、台灯小点光，配后期 Bloom 泛光（参考项目夜景氛围的做法）
+7. [x] **夜间灯光优化**（2026-07 完成，4 个提交对应 4 步）：落地灯（FloorLamp.js，点光落地 + 夜间 spot 软影）、发光窗（WallWindow.js，HDR 玻璃 + RectAreaLight）、实体夜灯（DeskGlow.js LED 呼吸灯带 + 台灯，屏幕夜间渐亮 1.35）、Bloom 后期（Renderer 双路径，白天直渲零开销）。实现细节与三个陷阱（scene.background、GLB 失控 emissive、A/B 测量的 shader 重编译）见"关键实现说明"。610M 实测夜间 31.7fps 与白天持平。遗留：
+   - [ ] 灯具位置/颜色强度都是文件顶部常量，用户看过实际效果后可微调
 - [ ] 墙色可选改成参考图的"白 + 玫红"双色方案（用户尚未决定）
