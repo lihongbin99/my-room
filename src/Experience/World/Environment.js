@@ -11,7 +11,6 @@ const BRIGHT_DAY = {
   hemiSky: new THREE.Color('#b9c5ff'),
   sunColor: new THREE.Color('#ffe3c0'),
   sunIntensity: 2.4,
-  lampIntensity: 1.5,
   envIntensity: 0.5,
 }
 
@@ -21,7 +20,6 @@ const NIGHT = {
   hemiSky: new THREE.Color('#4a5488'),
   sunColor: new THREE.Color('#7a86c9'), // 夜晚主光变成冷色月光
   sunIntensity: 0.35,
-  lampIntensity: 10,
   envIntensity: 0.08,
 }
 
@@ -32,7 +30,6 @@ const DAY = {
   hemiSky: new THREE.Color().lerpColors(BRIGHT_DAY.hemiSky, NIGHT.hemiSky, 0.5),
   sunColor: new THREE.Color().lerpColors(BRIGHT_DAY.sunColor, NIGHT.sunColor, 0.5),
   sunIntensity: half(BRIGHT_DAY.sunIntensity, NIGHT.sunIntensity),
-  lampIntensity: half(BRIGHT_DAY.lampIntensity, NIGHT.lampIntensity),
   envIntensity: half(BRIGHT_DAY.envIntensity, NIGHT.envIntensity),
 }
 
@@ -75,11 +72,7 @@ export default class Environment {
     this.sun.shadow.bias = -0.001
     this.sun.shadow.radius = 6
     this.scene.add(this.sun)
-
-    // 房间角落的暖色灯，夜晚成为主要光源
-    this.lamp = new THREE.PointLight('#ffb46e', DAY.lampIntensity, 14, 2)
-    this.lamp.position.set(-2, 3.2, -2)
-    this.scene.add(this.lamp)
+    // 暖色点光已迁到 FloorLamp.js（落地灯灯罩位置），不再由 Environment 管
   }
 
   setNightMix(value) {
@@ -91,7 +84,6 @@ export default class Environment {
     this.hemi.color.lerpColors(DAY.hemiSky, NIGHT.hemiSky, mix)
     this.sun.intensity = THREE.MathUtils.lerp(DAY.sunIntensity, NIGHT.sunIntensity, mix)
     this.sun.color.lerpColors(DAY.sunColor, NIGHT.sunColor, mix)
-    this.lamp.intensity = THREE.MathUtils.lerp(DAY.lampIntensity, NIGHT.lampIntensity, mix)
     this.scene.environmentIntensity = THREE.MathUtils.lerp(DAY.envIntensity, NIGHT.envIntensity, mix)
 
     const bg = new THREE.Color().lerpColors(DAY.background, NIGHT.background, mix)
