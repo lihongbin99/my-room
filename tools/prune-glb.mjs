@@ -3,6 +3,7 @@
 // 列出顶层节点：  node tools/prune-glb.mjs models-src/xxx.glb --list
 // 裁剪并压缩：    node tools/prune-glb.mjs models-src/xxx.glb public/models/out.glb --keep "NodeA,NodeB"
 // 只压缩不裁剪：  node tools/prune-glb.mjs models-src/xxx.glb public/models/out.glb
+// 删深层节点：    加 --drop "名1,名2"（全树精确匹配，删被 --keep 保住的子树里的个别部件）
 //
 // 注意：--keep 用的是 GLB 里的原始节点名（可含点号）；
 // three.js 的 GLTFLoader 加载后会把名字里的点号等去掉（Plane.006_17 → Plane006_17）。
@@ -18,6 +19,7 @@ const src = args[0];
 const list = args.includes('--list');
 const out = list ? null : args[1];
 const keepArg = args.includes('--keep') ? args[args.indexOf('--keep') + 1] : null;
+const dropArg = args.includes('--drop') ? args[args.indexOf('--drop') + 1] : null;
 
 if (!src || (!list && !out)) {
   console.log('用法见文件头部注释');
@@ -51,6 +53,17 @@ if (keepArg) {
     for (const n of subtree.reverse()) n.dispose();
   }
   console.log('保留:', sceneRoot.listChildren().map((n) => n.getName()).join(', '));
+}
+
+if (dropArg) {
+  const drop = new Set(dropArg.split(',').map((s) => s.trim()));
+  for (const node of root.listNodes()) {
+    if (!drop.has(node.getName())) continue;
+    console.log('删除:', node.getName());
+    const subtree = [];
+    node.traverse((n) => subtree.push(n));
+    for (const n of subtree.reverse()) n.dispose();
+  }
 }
 
 await doc.transform(
