@@ -9,9 +9,10 @@ const LED_NIGHT = new THREE.Color(0.3, 1.0, 2.2) // 冰蓝 HDR（>1 分量夜里
 const PULSE = { speed: 0.0015, amp: 0.12 } // Bruno 式呼吸：sin 调制亮度
 
 const LAMP = { x: -3.28, z: -3.15, baseY: 1.43, poleH: 0.34, shadeR: 0.07 } // 桌面左端墙角
-const LAMP_LIGHT = { color: '#ffd29b', dist: 3.5, decay: 2, nightIntensity: 2.2 }
+// 强度别贪：台灯离墙 15cm，墙面像素被点光打到 >1.15 就会整片泛光白爆（调过一次）
+const LAMP_LIGHT = { color: '#ffd29b', dist: 3.5, decay: 2, nightIntensity: 1.3 }
 const LAMP_DAY_EMISSIVE = 0.1
-const LAMP_NIGHT_EMISSIVE = 1.8
+const LAMP_NIGHT_EMISSIVE = 1.45
 
 export default class DeskGlow {
   constructor() {

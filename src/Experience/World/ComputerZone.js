@@ -44,6 +44,11 @@ export default class ComputerZone {
           child.material.opacity = Math.min(child.material.opacity + 0.13, 1) // 补回透射丢失的透亮感
           child.material.needsUpdate = true
         }
+        // Sketchfab 的 KHR_materials_emissive_strength 会带失控的发光强度
+        // （椅子红色件 emissive 红 ×10，夜间 Bloom 下炸成红光团），钳到 1
+        if (child.material?.emissiveIntensity > 1) {
+          child.material.emissiveIntensity = 1
+        }
       }
     })
 

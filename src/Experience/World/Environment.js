@@ -42,6 +42,13 @@ export default class Environment {
     this.nightMix = 0 // 目标值，由面板控制
     this.currentMix = 0 // 每帧向目标值缓动
 
+    // 背景色走 scene.background 而非 renderer.setClearColor：
+    // setClearColor 在调用瞬间按"当时绑定的渲染目标"决定颜色空间编码，
+    // World.update 时目标是屏幕(sRGB)，下一刻 composer 却把它清进线性 HDR 缓冲，
+    // OutputPass 再变换一遍 → 夜空背景被抬亮 4 倍；scene.background 是渲染时按当前目标换算，两条路径都对
+    this.bgColor = new THREE.Color()
+    this.scene.background = this.bgColor
+
     this.setEnvironment()
     this.setLights()
     this.apply(0)
@@ -86,8 +93,7 @@ export default class Environment {
     this.sun.color.lerpColors(DAY.sunColor, NIGHT.sunColor, mix)
     this.scene.environmentIntensity = THREE.MathUtils.lerp(DAY.envIntensity, NIGHT.envIntensity, mix)
 
-    const bg = new THREE.Color().lerpColors(DAY.background, NIGHT.background, mix)
-    this.renderer.instance.setClearColor(bg)
+    this.bgColor.lerpColors(DAY.background, NIGHT.background, mix)
   }
 
   update() {
