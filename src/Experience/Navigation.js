@@ -28,7 +28,7 @@ export default class Navigation {
     this.view.spherical.smoothed = this.view.spherical.value.clone()
     this.view.spherical.smoothing = 0.005
     this.view.spherical.limits = {
-      radius: { min: 6, max: 22 },
+      radius: { min: 0, max: 22 },
       phi: { min: 0.1, max: Math.PI * 0.45 },
       theta: { min: 0, max: Math.PI * 0.5 },
     }
