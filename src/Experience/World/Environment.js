@@ -92,9 +92,13 @@ export default class Environment {
 
   update() {
     // 缓动到目标值，让拖动滑杆时光照平滑过渡
+    // 收敛后钉到目标再按"值有变化"决定 apply——低帧率下(大 delta)缓动会一步跳到目标值，
+    // 旧写法(diff > 阈值才 apply)会跳过最后一次应用，夜色停在半路（无头截图时踩过）
     const delta = this.experience.time.delta
+    const prev = this.currentMix
     this.currentMix += (this.nightMix - this.currentMix) * Math.min(1, 0.005 * delta)
-    if (Math.abs(this.nightMix - this.currentMix) > 0.0005) {
+    if (Math.abs(this.nightMix - this.currentMix) <= 0.0005) this.currentMix = this.nightMix
+    if (this.currentMix !== prev) {
       this.apply(this.currentMix)
     }
   }
