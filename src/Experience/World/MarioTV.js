@@ -1,14 +1,15 @@
 import * as THREE from 'three'
 import Experience from '../Experience.js'
+import { assetUrl } from '../assets.js'
 
 // 电视里可玩的 NES 马里奥：jsnes 模拟器输出到离屏 canvas，再以 CanvasTexture
 // 贴到电视屏幕位置的平面上——不走 CSS3D，画面就是场景里的一块 mesh，有"真电视"感。
 // 进页面就自动启动模拟器：电视默认播着标题画面/演示（静音、无输入，像家里开着的电视）；
 // 两态交互仿 Bookshelf：默认态悬停白描边、点击聚焦到屏幕正前方，此时才开声音 +
 // 键盘转发给 NES（←→ 移动、X 跳、Z 跑/火球、Enter 开始），点屏幕外/ESC 退出（静音继续播）。
-// ROM 不进仓库（.gitignore 排除，部署记得带上）：public/roms/mario.nes，缺失时屏幕给提示。
+// ROM 不进仓库（.gitignore 排除），已上 OSS 从那边加载（tools/upload-oss.mjs），缺失时屏幕给提示。
 
-const ROM_URL = '/roms/mario.nes'
+const ROM_URL = assetUrl('/roms/mario.nes')
 const NES_W = 256
 const NES_H = 240
 const NES_FRAME_MS = 1000 / 60.0988 // NES 实机帧率，模拟器按累计时间步进（高刷屏不加速）

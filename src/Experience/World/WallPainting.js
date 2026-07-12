@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import Experience from '../Experience.js'
+import { assetUrl } from '../assets.js'
 
 // 电视上方的宽幅挂画（婚纱照）：香槟金框条 + 暖白卡纸衬边 + 照片平面
 // 照片纹理走 DefaultLoadingManager（BIOS 日志自然打一行），另暴露 ready 给 Loading 收口
@@ -76,7 +77,7 @@ export default class WallPainting {
   loadPhoto() {
     return new Promise((resolve) => {
       new THREE.TextureLoader().load(
-        '/paintings/wedding.webp',
+        assetUrl('/paintings/wedding.webp'),
         (texture) => {
           texture.colorSpace = THREE.SRGBColorSpace
           this.photoMaterial.map = texture

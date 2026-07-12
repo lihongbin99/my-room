@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import Experience from '../Experience.js'
+import { assetUrl } from '../assets.js'
 
 // 桌面小物件（TODO 1 遗留）：键盘左边的头戴耳机 + Java 马克杯（咖啡液面 + 热气）
 // headphones.glb 经 tools/crush-glb.mjs 压缩，带 EXT_meshopt_compression，加载要挂 MeshoptDecoder
@@ -117,8 +118,8 @@ export default class DeskProps {
       })
 
     this.ready = Promise.all([
-      loadOne('/models/headphones.glb', (model) => this.setHeadphones(model)),
-      loadOne('/models/mug.glb', (model) => this.setMug(model)),
+      loadOne(assetUrl('/models/headphones.glb'), (model) => this.setHeadphones(model)),
+      loadOne(assetUrl('/models/mug.glb'), (model) => this.setMug(model)),
     ]).then(async ([headphones, mug]) => {
       await (this.decalReady ?? Promise.resolve()) // Java 贴纸图也算 mug 就绪的一部分
       return { headphones, mug }
@@ -219,7 +220,8 @@ export default class DeskProps {
         texture.needsUpdate = true
         resolve(true) // 有手绘兜底，照样算就绪
       }
-      img.src = '/java-logo.webp'
+      img.crossOrigin = 'anonymous' // OSS 跨域图要画进 canvas 再上 WebGL，不设会污染画布
+      img.src = assetUrl('/java-logo.webp')
     })
 
     const radius = bodyRadius * 1.012

@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import Experience from '../Experience.js'
 import BOOKS from './booksData.js'
+import { assetUrl } from '../assets.js'
 
 // 茶几上"正在读"的那本书：booksData 里 finished:false 且开始日期最新的一本
 // （用户约定同时只在读一本，其余 finished:false 是搁置的"未读完"，不上桌）。
@@ -196,7 +197,7 @@ export default class CoffeeTableBooks {
     }
     return new Promise((resolve) => {
       loader.load(
-        '/books/' + encodeURIComponent(this.book.cover),
+        assetUrl('/books/' + encodeURIComponent(this.book.cover)),
         (texture) => {
           texture.colorSpace = THREE.SRGBColorSpace
           texture.anisotropy = 8

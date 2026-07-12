@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import Experience from '../Experience.js'
 import MarioTV from './MarioTV.js'
 import CoffeeTableBooks from './CoffeeTableBooks.js'
+import { assetUrl } from '../assets.js'
 
 // 电视区：电视柜、电视、Switch、双人沙发、茶几、Switch 手柄（6 个独立小模型，见 public/models/）
 // 每件都走"转向 → 按包围盒缩放 → 对齐定位"的统一流程（fit + place）
@@ -34,12 +35,12 @@ export default class TVZone {
   async setup() {
     const loader = new GLTFLoader()
     const [cabinet, tv, switchGltf, sofa, table, controller] = await Promise.all([
-      loader.loadAsync('/models/tv-cabinet.glb'),
-      loader.loadAsync('/models/tv.glb'),
-      loader.loadAsync('/models/switch.glb'),
-      loader.loadAsync('/models/loveseat.glb'),
-      loader.loadAsync('/models/coffee-table.glb'),
-      loader.loadAsync('/models/switch-controller.glb'),
+      loader.loadAsync(assetUrl('/models/tv-cabinet.glb')),
+      loader.loadAsync(assetUrl('/models/tv.glb')),
+      loader.loadAsync(assetUrl('/models/switch.glb')),
+      loader.loadAsync(assetUrl('/models/loveseat.glb')),
+      loader.loadAsync(assetUrl('/models/coffee-table.glb')),
+      loader.loadAsync(assetUrl('/models/switch-controller.glb')),
     ])
 
     // 电视柜：模型自带朝向面向 +z（前面板在 z 正侧），背贴后墙

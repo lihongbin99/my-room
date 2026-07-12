@@ -87,6 +87,8 @@ export default class Loading {
     const seen = new Set()
     this.embedCount = 0
     this.embedEl = null
+    // 大资源走 OSS 后 url 带完整域名，日志只留路径，行宽不爆
+    const shortUrl = (url) => url.replace(/^https?:\/\/[^/]+/, '')
     manager.onProgress = (url) => {
       if (/^(blob|data):/.test(url)) {
         this.embedCount++
@@ -101,11 +103,11 @@ export default class Loading {
         }
       } else if (!seen.has(url)) {
         seen.add(url)
-        this.push(this.pad(`  LOADING ${url}`) + 'OK')
+        this.push(this.pad(`  LOADING ${shortUrl(url)}`) + 'OK')
       }
     }
     manager.onError = (url) => {
-      if (!/^(blob|data):/.test(url)) this.push(this.pad(`  LOADING ${url}`) + 'FAIL')
+      if (!/^(blob|data):/.test(url)) this.push(this.pad(`  LOADING ${shortUrl(url)}`) + 'FAIL')
     }
   }
 

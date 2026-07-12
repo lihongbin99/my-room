@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import Experience from '../Experience.js'
 import BOOKS from './booksData.js'
+import { assetUrl } from '../assets.js'
 
 // 书架 + 书（左墙 x=-4）：架体程序化生成，全部书按阅读顺序（date）
 // 从最上层左端往右下流式排列，每年第一本书前立一个刻年份的小木盒当分隔
@@ -535,7 +536,7 @@ export default class Bookshelf {
       material.needsUpdate = true
     }
     this.textureLoader.load(
-      '/books/' + encodeURIComponent(ud.book.cover),
+      assetUrl('/books/' + encodeURIComponent(ud.book.cover)),
       (texture) => {
         texture.colorSpace = THREE.SRGBColorSpace
         texture.anisotropy = 8

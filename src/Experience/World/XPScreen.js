@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js'
 import Experience from '../Experience.js'
+import { assetUrl } from '../assets.js'
 
 // 显示器里的浏览器版 Windows XP（fork 自 ShizukuIchi/winXP，构建产物在 public/xp/）。
 // 两态交互同 MarioTV：默认态屏幕只是一块贴截图纹理的平面（零 DOM 开销），
@@ -68,7 +69,7 @@ export default class XPScreen {
     // ready 给 Loading（BIOS 开机屏）收口用；失败留待机图即可，不卡开机
     this.ready = new Promise((resolve) => {
       new THREE.TextureLoader().load(
-        '/xp-desktop.webp',
+        assetUrl('/xp-desktop.webp'),
         (texture) => {
           texture.colorSpace = THREE.SRGBColorSpace
           texture.anisotropy = 4

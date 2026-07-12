@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import Experience from '../Experience.js'
 import XPScreen from './XPScreen.js'
+import { assetUrl } from '../assets.js'
 
 // 电脑区：桌、椅、主机、显示器、键鼠等，来自清理后的 computer-zone.glb
 // （原始下载文件在 models-src/，用 scratchpad 的 gltf-transform 脚本裁剪压缩而来）
@@ -25,7 +26,7 @@ export default class ComputerZone {
     // ready 给 Loading（BIOS 开机屏）收口用：GLB 解析装配完 + XP 截图纹理也到位才算就绪
     this.ready = new Promise((resolve) => {
       new GLTFLoader().load(
-        '/models/computer-zone.glb',
+        assetUrl('/models/computer-zone.glb'),
         (gltf) => {
           this.setModel(gltf.scene)
           this.setChairSwivel(gltf.scene)
