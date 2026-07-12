@@ -86,6 +86,13 @@ export default class Environment {
     this.nightMix = THREE.MathUtils.clamp(value, 0, 1)
   }
 
+  // 预热专用:绕过缓动把 currentMix 直接钉在指定值并立即应用。
+  // 各夜灯模块在下一帧的 update() 里按 currentMix 自行跟进,渲染即呈现该状态
+  pin(value) {
+    this.nightMix = this.currentMix = THREE.MathUtils.clamp(value, 0, 1)
+    this.apply(this.currentMix)
+  }
+
   apply(mix) {
     this.hemi.intensity = THREE.MathUtils.lerp(DAY.hemiIntensity, NIGHT.hemiIntensity, mix)
     this.hemi.color.lerpColors(DAY.hemiSky, NIGHT.hemiSky, mix)

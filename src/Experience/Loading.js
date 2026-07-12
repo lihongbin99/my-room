@@ -7,9 +7,9 @@ import BOOKS from './World/booksData.js'
 //   manager，天然全走它；Bookshelf 封面懒加载已隔离到私有 manager，不会让进度"复活"）
 // - "加载完成"不用 manager.onLoad（GLTF 解析间隙会误触发，且 XPScreen 的截图纹理是在
 //   GLB 解析回调里才开始加载的），改等各模块自己暴露的 ready Promise，确定性收口
-// - 收口后趁遮罩还盖着画布做 shader 预热：nightMix 拨到 1 再拨回 0，按生产渲染路径把
-//   三套变体全编译掉（夜间 composer+spot 影、中间带直渲+spot、白天直渲），
-//   否则首次拖日夜滑杆会因全场景 shader 重编译卡一下（用户反馈过）
+// - 收口后趁遮罩还盖着画布做 shader 预热：把 currentMix 逐状态钉住各渲染一帧，精确盖住
+//   所有"灯数×管线"组合（spot 灯/台灯开关、composer 阈值各对应一整套全场景 shader 变体），
+//   否则首次拖日夜滑杆会因全场景 shader 重编译卡一下（用户反馈过；细节与教训见 prewarm）
 const LINE_GAP = 90 // 相邻两行的最小间隔 ms：本地缓存秒加载时也保留"逐行自检"的仪式感
 const PAD_COL = 44 // 资源行点号补齐到的列宽
 
@@ -59,18 +59,6 @@ export default class Loading {
 
   delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms))
-  }
-
-  // 逐帧轮询条件，附超时兜底：预热等待绝不能卡死开机流程
-  waitFor(cond, timeout = 8000) {
-    const t0 = performance.now()
-    return new Promise((resolve) => {
-      const check = () => {
-        if (cond() || performance.now() - t0 > timeout) return resolve()
-        requestAnimationFrame(check)
-      }
-      check()
-    })
   }
 
   pad(label) {
@@ -189,15 +177,29 @@ export default class Loading {
     })
   }
 
-  // 日夜往返：让正常渲染循环自己走过 spot 灯开启/Bloom composer 两个阈值，
-  // 回程缓动在 0.006~0.02 带内必然多帧停留，第三套变体（直渲+spot 灯）也被编译到
+  // 逐状态钉住 currentMix 各渲染一帧，覆盖所有"灯数×管线"组合。灯的 visible 一变
+  // （FloorLamp spot >0.00625、DeskGlow 台灯 >0.0385、composer >0.02）全场景就是一套新变体。
+  // ⚠️ 教训：旧方案靠自然缓动往返、指望回程"在阈值带内必然多帧停留"，但缓动是
+  // min(1, 0.005×delta) 的指数追赶——编译冻结帧的 delta 高达数秒，下一步直接跳到目标值，
+  // 把低 mix 的阈值带整个跳过，漏掉的变体全堆到首次真实拖滑杆时爆一次大冻结（实测 3.8s）。
+  // 钉步进不受冻结影响：卡多久都只是慢，不会跳步。任何 <0.08 的开关阈值都至少落一帧；
+  // 以后新增夜灯若阈值 ≥0.08，在粗段补一步或调低强度阈值
   async prewarm() {
     const el = this.addLine(this.pad('Precompiling day/night pipelines'))
     const env = this.experience.world.environment
-    env.setNightMix(1)
-    await this.waitFor(() => env.currentMix > 0.98)
-    env.setNightMix(0)
-    await this.waitFor(() => env.currentMix === 0)
+    // rAF 与 250ms 超时赛跑：后台标签页 rAF 不发火时照样走完，退化为无预热但绝不卡死开机
+    const frame = () =>
+      new Promise((resolve) => {
+        requestAnimationFrame(resolve)
+        setTimeout(resolve, 250)
+      })
+    // 1 → 0.08 粗步进（×0.7），0.08 → 0 细步进（0.004）
+    for (let m = 1; m > 0; m = m > 0.08 ? m * 0.7 : m - 0.004) {
+      env.pin(m)
+      await frame()
+    }
+    env.pin(0)
+    await frame()
     el.textContent += 'OK'
   }
 
