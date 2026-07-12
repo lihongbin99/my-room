@@ -11,6 +11,11 @@ reference/
 # NES ROM（版权原因不入库，自备后放这里）
 public/roms/*.nes
 
+# 已迁 OSS 的大资源（本地只是 crush/上传的中间产物，运行时从 OSS 加载）
+public/models/
+public/books/
+public/paintings/
+
 # OSS 密钥（upload-oss.mjs 环境变量缺失时自动读它，绝不能提交）
 .env.oss
 

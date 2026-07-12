@@ -126,7 +126,8 @@ export default class DeskProps {
     })
   }
 
-  // 平放在桌上：拱架放平、耳罩侧缘着桌（rotX 后模型 y 向变 z 向，再用外层组转朝向）
+  // 平放在桌上：耳罩朝下、按钮面朝上（rotX 后模型 y 向变 z 向，再用外层组转朝向）
+  // 现用模型 headphone_mesh（原立姿），同一套变换正好放平，换模型只覆盖 GLB 即可
   setHeadphones(model) {
     model.traverse((child) => {
       if (child.isMesh) {
@@ -139,10 +140,12 @@ export default class DeskProps {
     wrapper.add(model)
     wrapper.rotation.y = HEADPHONES.rotY
 
-    const size = new THREE.Box3().setFromObject(wrapper).getSize(new THREE.Vector3())
+    // 必须 precise 逐顶点算：模型内部多层旋转，默认的"局部盒过世界矩阵"虚胖一大圈，
+    // 按虚胖盒落地=实际几何悬空（headphone_mesh 换上来时踩过，悬空约 0.2）
+    const size = new THREE.Box3().setFromObject(wrapper, true).getSize(new THREE.Vector3())
     wrapper.scale.setScalar(HEADPHONES.length / Math.max(size.x, size.z))
 
-    const box = new THREE.Box3().setFromObject(wrapper)
+    const box = new THREE.Box3().setFromObject(wrapper, true)
     wrapper.position.x = HEADPHONES.x - (box.min.x + box.max.x) / 2
     wrapper.position.y = HEADPHONES.y - box.min.y
     wrapper.position.z = HEADPHONES.z - (box.min.z + box.max.z) / 2
