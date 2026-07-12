@@ -13,7 +13,8 @@ const MUG = { x: -2.78, y: 1.44, z: -2.7, height: 0.22, rotY: -0.35 } // 键盘�
 const COFFEE_LEVEL = 0.78 // 液面高度（占杯高比例）
 const COFFEE_COLOR = '#2a1a10' // 深咖啡色
 const DECAL_ROT_Y = 0.6 // Java 贴纸朝向：相机限在 +x/+z 象限，法线也指向那边（与手柄朝向无关）
-const STEAM = { width: 0.14, height: 0.42, color: '#9aa0ae', timeFrequency: 0.0004, uvFrequency: new THREE.Vector2(4, 5) }
+// 热气必须近白：ShaderMaterial 不过色调映射直出颜色，中灰在白天亮墙前会渲染成"黑烟"
+const STEAM = { width: 0.14, height: 0.42, color: '#eef2f6', timeFrequency: 0.0004, uvFrequency: new THREE.Vector2(4, 5) }
 
 // 热气 shader 移植自 reference/my-room-in-3d 的 CoffeeSteam（perlin 噪声扰动 + 边缘淡出）
 const PERLIN_2D = /* glsl */ `
@@ -174,17 +175,37 @@ export default class DeskProps {
 
     const mugTop = MUG.y + MUG.height
     const mugHeight = MUG.height
-    const bodyRadius = (box.max.z - box.min.z) / 2 // z 向手柄投影小于本体直径，即本体外径
+    const bodyRadius = (box.max.z - box.min.z) / 2 // z 向手柄投影小于本体直径，即本体外径（在杯底最宽处）
 
-    this.setCoffee(mugTop, mugHeight, bodyRadius)
+    // 杯身上下不等宽（底部外扩 r≈4.7、上段收窄 r≈3.4，模型单位）：液面不能用包围盒半径，
+    // 否则比液面高度处的杯壁还宽、从杯里捅出来——逐顶点实测上段杯壁内半径
+    const innerRadius = this.measureUpperInnerRadius(model, MUG.y + mugHeight * 0.55)
+    this.setCoffee(mugTop, mugHeight, (innerRadius ?? bodyRadius * 0.7) * 0.97)
     this.setJavaDecal(mugTop, mugHeight, bodyRadius)
     this.setSteam(mugTop)
   }
 
+  // 上段杯壁内半径：扫全部顶点，取 y ≥ yMin 范围内到杯身轴 (MUG.x, MUG.z) 的最小水平距离——
+  // 杯口段只有杯壁和手柄，手柄/外壁都比内壁远，最小值即内壁半径（量化属性 fromBufferAttribute 自带反归一化）
+  measureUpperInnerRadius(model, yMin) {
+    model.updateWorldMatrix(true, true)
+    let r = Infinity
+    const v = new THREE.Vector3()
+    model.traverse((child) => {
+      if (!child.isMesh) return
+      const pos = child.geometry.attributes.position
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(child.matrixWorld)
+        if (v.y >= yMin) r = Math.min(r, Math.hypot(v.x - MUG.x, v.z - MUG.z))
+      }
+    })
+    return Number.isFinite(r) ? r : null
+  }
+
   // 咖啡液面：杯口下方一点的深色圆片，高光泽
-  setCoffee(mugTop, mugHeight, bodyRadius) {
+  setCoffee(mugTop, mugHeight, radius) {
     const surface = new THREE.Mesh(
-      new THREE.CircleGeometry(bodyRadius * 0.8, 24),
+      new THREE.CircleGeometry(radius, 24),
       new THREE.MeshStandardMaterial({ color: COFFEE_COLOR, roughness: 0.08, metalness: 0 })
     )
     surface.rotation.x = -Math.PI / 2
