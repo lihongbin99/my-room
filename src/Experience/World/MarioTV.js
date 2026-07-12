@@ -171,13 +171,14 @@ export default class MarioTV {
     this.hullMesh.position.copy(center)
     this.scene.add(this.hullMesh)
 
-    // 白描边外壳（同 Bookshelf 的背面法），往前上各挪半个 pad，不陷进墙和柜面
+    // 白描边外壳（同 Bookshelf 的背面法），往前上各挪半个 pad 再加余量——
+    // 只挪半个 pad 时底面与柜面完全共面，会 z-fighting 闪烁
     this.outlineMesh = new THREE.Mesh(
       new THREE.BoxGeometry(size.x + OUTLINE_PAD, size.y + OUTLINE_PAD, size.z + OUTLINE_PAD),
       new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.BackSide, toneMapped: false })
     )
     this.outlineMesh.position.copy(center)
-    this.outlineMesh.position.y += OUTLINE_PAD / 2
+    this.outlineMesh.position.y += OUTLINE_PAD / 2 + 0.01
     this.outlineMesh.position.z += OUTLINE_PAD / 2 + 0.01
     this.outlineMesh.visible = false
     this.scene.add(this.outlineMesh)
