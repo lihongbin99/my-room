@@ -31,7 +31,7 @@ src/
       World.js                   # 场景内容容器，update() 里驱动各物件动画
       Room.js                    # 房间壳：地板 + 两面墙，程序化 canvas 贴图
       Environment.js             # 灯光 + 日夜插值（DAY/NIGHT 两套参数按 nightMix 混合）
-      ComputerZone.js            # 电脑区（桌椅主机显示器键鼠），加载 computer-zone.glb（旧黑桌已离线换成 low_poly_computer_desk 的木桌，见 tools/swap-desk.mjs）
+      ComputerZone.js            # 电脑区（桌椅主机显示器键鼠），加载 computer-zone.glb（旧黑桌已离线换成 teachers_desk 的白灰板式桌，见 tools/swap-desk.mjs）
       XPScreen.js                # 显示器里的浏览器版 Windows XP（两态：截图纹理 / CSS3D iframe）
       TVZone.js                  # 电视区（电视柜/电视/Switch/沙发/茶几/Switch手柄，6 个独立 GLB；手柄换深灰塑料材质平放茶几右前角）
       CoffeeTableBooks.js        # 茶几上"正在读"的那本书（finished:false 里 date 最新的一本，平放+真实封面；点击取书动效同书架；由 TVZone 在茶几摆好后实例化）
@@ -50,7 +50,7 @@ tools/
   crush-glb.mjs                  # 小道具激进压缩（大幅减面+meshopt 编码+迷你贴图+按名砍隐藏部件；输出的 GLB 加载时要 setMeshoptDecoder，用法见文件头注释）
   dump-tree.mjs                  # 打印 GLB 完整节点树 + 世界包围盒，分析新模型第一步
   split-switch.mjs               # 按顶点连通岛拆分"一个网格混多个部件"（写死了 switch，可参考改造）
-  swap-desk.mjs                  # 把 computer-zone.glb 的旧黑桌（柜体+桌面板）换成 low_poly_computer_desk 拆岛挑出的木桌：转90°非均匀缩放进旧桌精确包围盒、烘成 LowPolyDesk 节点，桌面物件与运行时代码零改动（用法见文件头注释）
+  swap-desk.mjs                  # 把 computer-zone.glb 的旧黑桌（柜体+桌面板）换成单独下载的桌子模型（当前 teachers_desk 白灰板式桌）：非均匀缩放进旧桌精确包围盒、烘成 SwappedDesk 节点，桌面物件与运行时代码零改动；要求来源"整个文件只有桌子"，混件的先拆岛（见 git 历史 low_poly 版）（用法见文件头注释）
   upload-oss.mjs                 # 大静态资源上传到阿里云 OSS + 重放 CORS 规则（AK/SK 走环境变量，用法见文件头注释）
 models-src/                      # 下载的原始模型（大文件，不进 public/ 不参与构建）
 public/models/                   # 裁剪压缩后的模型（已全量上 OSS，运行时从 OSS 加载，见"静态资源走 OSS"条）
@@ -140,7 +140,7 @@ Room_Portfolio 关键实现文件（照抄交互流程用）：
 1. [x] **电脑区**：桌、主机、显示器、键盘、鼠标、鼠标垫（桌垫）、电脑椅已完成（来自用户下载的 Sketchfab 游戏房模型，裁剪出 10 件核心）。遗留：
    - [x] 耳机 + 马克杯（2026-07 完成）：`World/DeskProps.js`，键盘左边（位置按运行时实测键盘/桌垫包围盒定，常量在文件顶部）。耳机 headphone_mesh（2026-07 从 microsoft_headphones_surface_2 换成此模型，5.4MB→164KB：`tools/crush-glb.mjs` 减面到 12%、无贴图纯几何、保法线传 dropNormal=0、meshopt 编码；换模型只需覆盖 public/models/headphones.glb + 传 OSS，摆放代码零改动。旧模型的教训仍适用：**放大简化误差换不来更少的面、只会白白变形**，减面下限时删隐藏部件才是正路）；耳机平放（rotX -90° 放平、耳罩朝下按钮面朝上，外层 Group 控朝向）；马克杯白模换陶瓷材质 + 咖啡液面圆片 + Java 官方 logo 贴纸（源图 Downloads/Java Logo.jpg，sharp 白底抠透明 → public/java-logo.webp，运行时画进 canvas 贴在杯身开口圆柱段上，弧段长宽比按图配平不变形，加载失败退回手绘兜底；**模型原点在杯身轴心，包围盒含手柄不对称，液面/贴纸定位用原点不用包围盒中心**；logo 图走 new Image() 不过 DefaultLoadingManager，不会让 BIOS 日志复活）+ 热气 shader（移植 Bruno CoffeeSteam，perlin 扰动+向上淡出，每帧绕 Y 朝相机）。BIOS 新增 USB audio device / Coffee 两行日志
    - [ ] 耳机/马克杯的 Sketchfab 署名信息（模型名 headphone_mesh / white_coffee_mug，作者链接用户下载页有），页面 credits 时一并带上
-   - [ ] 木桌的 Sketchfab 署名信息（模型名 low_poly_computer_desk，2026-07 用 tools/swap-desk.mjs 换掉了原黑桌），页面 credits 时一并带上
+   - [ ] 桌子的 Sketchfab 署名信息（模型名 teachers_desk，2026-07 用 tools/swap-desk.mjs 换掉了原黑桌；此前短暂用过 low_poly_computer_desk 已弃用），页面 credits 时一并带上
    - [ ] Sketchfab 模型 CC 协议需要署名，页面加 credits 时记得带上（模型名 "3d gaming room with gaming setup"，作者见用户下载页）
 2. [x] **电视区**：电视柜、电视、Switch 主机、沙发、茶几已完成（5 个独立 Sketchfab 模型，见 `World/TVZone.js`；Switch 模型混在一起的盒子/手柄用 `tools/split-switch.mjs` 拆出后弃用，只留主机）。遗留：
    - [ ] 这 5 个模型（coffee_table_no_textures / kitchenz_simona_tv_cabinet / psx_flat_screen_tv / sim_loveseat / switch_console_roblox）也是 Sketchfab CC 协议，页面 credits 记得一并署名

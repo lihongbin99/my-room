@@ -81,7 +81,7 @@ for (const [key, full] of targets) {
   await client.put(key, full, {
     headers: {
       'Content-Type': MIME[extname(full).toLowerCase()] || 'application/octet-stream',
-      'Cache-Control': 'public, max-age=2592000', // 30 天，文件按名寻址、改内容记得换名或接受缓存期
+      'Cache-Control': 'no-cache', // 浏览器缓存但每次 ETag 校验（304 不重下），改内容普通刷新即生效（原 30 天强缓存，用户反馈更新要强刷，2026-07 去掉）
     },
   })
   done++; bytes += size

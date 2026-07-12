@@ -1,21 +1,20 @@
-// 把 computer-zone.glb 里的旧电脑桌（纯黑柜体+桌面板）换成 low_poly_computer_desk 的木桌。
+// 把 computer-zone.glb 里的旧电脑桌（纯黑柜体+桌面板）换成单独下载的桌子模型。
 //
-// 用法：node tools/swap-desk.mjs <computer-zone.glb> <low_poly_computer_desk.glb> <out.glb> [木纹提亮倍数=1.6]
-//   第一个参数是换桌前的 computer-zone.glb（线上已是换过的，重跑要用换桌前的版本，
+// 用法：node tools/swap-desk.mjs <computer-zone.glb> <desk.glb> <out.glb>
+//   第一个参数是【换桌前】的 computer-zone.glb（线上已是换过的，重跑要用换桌前的版本，
 //   没有就用 prune-glb 从 models-src/3d_gaming_room_with_gaming_setup.glb 重新裁）；
-//   第二个是 Sketchfab 原始模型（models-src/low_poly_computer_desk.glb）。
+//   第二个是桌子模型（当前是 models-src/teachers_desk.glb，要求"整个文件只有桌子"，
+//   宽沿 x、挡板朝 -z；若来源混着别的物件要先拆岛挑桌子，参考 git 历史里的
+//   low_poly_computer_desk 版本或 tools/split-switch.mjs）。
 //
-// 原理：新模型整套桌椅显示器烘在一个网格里，按"顶点坐标相同即连通"拆岛后，
-// 用几何特征挑出桌面大薄板 + 4 条方腿；绕 Y 转 90°（长边对齐 x 轴）再按轴非均匀
-// 缩放到旧桌子的精确包围盒（顶面高度/贴墙深度/落地都不变），烘进 GLTF_SceneRootNode
-// 下的新节点 LowPolyDesk——桌面上的显示器/键鼠/机箱和运行时代码（shiftDeskToCorner
-// 按"非椅子"整体平移）都不用动。删掉的旧节点：两个柜体 Cube.017/Cube.001、
-// 桌面板 Plane.005、整桌贴图层 Plane.004；保留 Plane.006（显示器键盘下的黑桌垫）。
-import { NodeIO } from '@gltf-transform/core'
+// 原理：桌子按轴非均匀缩放到旧桌子的精确包围盒（顶面高度/贴墙深度/左右跨度不变、
+// 腿落到地面），烘进 GLTF_SceneRootNode 下的新节点 SwappedDesk——桌面上的显示器/
+// 键鼠/机箱和运行时代码（shiftDeskToCorner 按"非椅子"整体平移）都不用动。
+// 删掉的旧节点：两个柜体 Cube.017/Cube.001、桌面板 Plane.005、整桌贴图层 Plane.004；
+// 保留 Plane.006（显示器键盘下的黑桌垫）。
+import { NodeIO, getBounds } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
-import { getBounds } from '@gltf-transform/core'
 import { prune } from '@gltf-transform/functions'
-import sharp from 'sharp'
 import { statSync } from 'node:fs'
 
 const [zonePath, deskPath, outPath] = process.argv.slice(2)
@@ -66,7 +65,7 @@ const xformPoint = (m, v) => {
 // 法线用 3x3 逆转置，最后归一化
 const normalMat3 = (m) => {
   const i = inv4(m)
-  return [i[0], i[4], i[8], i[1], i[5], i[9], i[2], i[6], i[10]] // 转置(逆) 的 3x3
+  return [i[0], i[4], i[8], i[1], i[5], i[9], i[2], i[6], i[10]]
 }
 const xformNormal = (n3, v) => {
   const [x, y, z] = v
@@ -80,54 +79,14 @@ const xformNormal = (n3, v) => {
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS)
 
-// ---------- 1. 从新模型拆连通岛，挑出桌面板 + 4 条腿 ----------
+// ---------- 1. 读桌子模型（整个文件只有桌子，取第一个带网格的节点） ----------
 const deskDoc = await io.read(deskPath)
 const deskNode = deskDoc.getRoot().listNodes().find((n) => n.getMesh())
 const prim = deskNode.getMesh().listPrimitives()[0]
 const pos = prim.getAttribute('POSITION')
 const idx = prim.getIndices()
-const triCount = idx.getCount() / 3
 const Wd = deskNode.getWorldMatrix()
-
-const parent = new Array(pos.getCount()).fill(0).map((_, i) => i)
-const find = (a) => (parent[a] === a ? a : (parent[a] = find(parent[a])))
-const union = (a, b) => { parent[find(a)] = find(b) }
-const byPos = new Map()
-const v = [0, 0, 0]
-for (let i = 0; i < pos.getCount(); i++) {
-  pos.getElement(i, v)
-  const key = v.map((x) => x.toFixed(6)).join(',')
-  if (byPos.has(key)) union(i, byPos.get(key))
-  else byPos.set(key, i)
-}
-for (let t = 0; t < triCount; t++) {
-  const a = idx.getScalar(t * 3)
-  union(a, idx.getScalar(t * 3 + 1))
-  union(a, idx.getScalar(t * 3 + 2))
-}
-const islands = new Map()
-for (let t = 0; t < triCount; t++) {
-  const key = find(idx.getScalar(t * 3))
-  if (!islands.has(key)) islands.set(key, { tris: [], min: [1e9, 1e9, 1e9], max: [-1e9, -1e9, -1e9] })
-  const isl = islands.get(key)
-  isl.tris.push(t)
-  for (let k = 0; k < 3; k++) {
-    pos.getElement(idx.getScalar(t * 3 + k), v)
-    xformPoint(Wd, v)
-    for (let d = 0; d < 3; d++) {
-      isl.min[d] = Math.min(isl.min[d], v[d])
-      isl.max[d] = Math.max(isl.max[d], v[d])
-    }
-  }
-}
-const size = (isl, d) => isl.max[d] - isl.min[d]
-const all = [...islands.values()]
-const tops = all.filter((i) => size(i, 0) > 4 && size(i, 2) > 8 && size(i, 1) < 1)
-const legs = all.filter((i) => size(i, 1) > 3 && size(i, 0) < 1 && size(i, 2) < 1 && i.min[1] < 0.1)
-if (tops.length !== 1 || legs.length !== 4)
-  throw new Error(`桌子部件识别失败：桌面板 ${tops.length} 个（应 1）、桌腿 ${legs.length} 条（应 4）`)
-const deskTris = [...tops, ...legs].flatMap((i) => i.tris)
-console.log(`挑出木桌：${deskTris.length} 三角形（桌面板 + 4 腿）`)
+console.log(`桌子来源：${deskNode.getName()}，${idx.getCount() / 3} 三角形`)
 
 // ---------- 2. 读目标 GLB，算旧桌子的精确包围盒 ----------
 const doc = await io.read(zonePath)
@@ -144,80 +103,57 @@ for (const name of OLD_DESK) {
     target.max[d] = Math.max(target.max[d], b.max[d])
   }
 }
-// 桌腿落到整个模型的地面（旧柜体底部悬 0.03，四条独立腿会看出悬空）
+// 桌腿落到整个模型的地面（旧柜体底部悬 0.03，独立腿/侧板会看出悬空）
 const sceneBounds = getBounds(doc.getRoot().listScenes()[0])
 target.min[1] = sceneBounds.min[1]
 console.log('旧桌包围盒 →', target.min.map((x) => +x.toFixed(3)), target.max.map((x) => +x.toFixed(3)))
 
-// ---------- 3. 顶点变换链：桌源世界系 → 绕Y转90° → 缩放平移进旧桌盒 → 目标父节点局部系 ----------
-const R90 = [0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1] // rotY(+90°)：(x,y,z)→(z,y,-x)
-const RW = mul4(R90, Wd)
-
-// 转完先量包围盒，再定各轴缩放
-const rotBox = { min: [1e9, 1e9, 1e9], max: [-1e9, -1e9, -1e9] }
-const usedVerts = new Set()
-for (const t of deskTris)
-  for (let k = 0; k < 3; k++) usedVerts.add(idx.getScalar(t * 3 + k))
-for (const i of usedVerts) {
+// ---------- 3. 顶点变换链：桌源世界系 → 缩放平移进旧桌盒 → 目标父节点局部系 ----------
+const srcBox = { min: [1e9, 1e9, 1e9], max: [-1e9, -1e9, -1e9] }
+const v = [0, 0, 0]
+for (let i = 0; i < pos.getCount(); i++) {
   pos.getElement(i, v)
-  xformPoint(RW, v)
+  xformPoint(Wd, v)
   for (let d = 0; d < 3; d++) {
-    rotBox.min[d] = Math.min(rotBox.min[d], v[d])
-    rotBox.max[d] = Math.max(rotBox.max[d], v[d])
+    srcBox.min[d] = Math.min(srcBox.min[d], v[d])
+    srcBox.max[d] = Math.max(srcBox.max[d], v[d])
   }
 }
-const s = [0, 1, 2].map((d) => (target.max[d] - target.min[d]) / (rotBox.max[d] - rotBox.min[d]))
+const s = [0, 1, 2].map((d) => (target.max[d] - target.min[d]) / (srcBox.max[d] - srcBox.min[d]))
 const fit = [
   s[0], 0, 0, 0,
   0, s[1], 0, 0,
   0, 0, s[2], 0,
-  target.min[0] - s[0] * rotBox.min[0],
-  target.min[1] - s[1] * rotBox.min[1],
-  target.min[2] - s[2] * rotBox.min[2], 1,
+  target.min[0] - s[0] * srcBox.min[0],
+  target.min[1] - s[1] * srcBox.min[1],
+  target.min[2] - s[2] * srcBox.min[2], 1,
 ]
 console.log('各轴缩放:', s.map((x) => +x.toFixed(3)))
 
 const sceneRootNode = nodeByName('GLTF_SceneRootNode')
-const M = mul4(inv4(sceneRootNode.getWorldMatrix()), mul4(fit, RW))
+const M = mul4(inv4(sceneRootNode.getWorldMatrix()), mul4(fit, Wd))
 const N = normalMat3(M)
 
-// ---------- 4. 重建紧凑顶点数组，建新节点 ----------
+// ---------- 4. 重建顶点数组，建新节点 ----------
 const srcNormal = prim.getAttribute('NORMAL')
-const srcUV = prim.getAttribute('TEXCOORD_0')
-const remap = new Map()
 const outPos = []
 const outNormal = []
-const outUV = []
-for (const i of usedVerts) {
-  remap.set(i, remap.size)
+for (let i = 0; i < pos.getCount(); i++) {
   pos.getElement(i, v)
   outPos.push(...xformPoint(M, v))
   srcNormal.getElement(i, v)
   outNormal.push(...xformNormal(N, v))
-  const uv = [0, 0]
-  srcUV.getElement(i, uv)
-  outUV.push(...uv)
 }
 const outIdx = []
-for (const t of deskTris)
-  for (let k = 0; k < 3; k++) outIdx.push(remap.get(idx.getScalar(t * 3 + k)))
+for (let k = 0; k < idx.getCount(); k++) outIdx.push(idx.getScalar(k))
 
-// 木纹贴图：整图转 webp（金属粗糙度贴图不带，木头用常数即可）。
-// 原图是深胡桃色，在房间白天光照下发黑，转档时按第 4 个参数提亮
-// （默认 2.8，用户对比 1.0~3.5 后选定）；亮度乘法会去饱和，补 1.15 找回木头暖色
-const brighten = Number(process.argv[5]) || 2.8
-const srcTex = prim.getMaterial().getBaseColorTexture()
-const webp = await sharp(srcTex.getImage())
-  .modulate({ brightness: brighten, saturation: 1.15 })
-  .webp({ quality: 82 })
-  .toBuffer()
-console.log('木纹提亮:', brighten)
-const texture = doc.createTexture('desk-wood').setImage(webp).setMimeType('image/webp')
+// 材质：teachers_desk 是无贴图纯色（lambert 灰 0.5），照抄底色/粗糙度即可
+const srcMat = prim.getMaterial()
 const material = doc
-  .createMaterial('DeskWood')
-  .setBaseColorTexture(texture)
+  .createMaterial('DeskPlain')
+  .setBaseColorFactor(srcMat.getBaseColorFactor())
   .setMetallicFactor(0)
-  .setRoughnessFactor(0.85)
+  .setRoughnessFactor(srcMat.getRoughnessFactor())
 
 const buffer = root.listBuffers()[0]
 const mkAcc = (arr, type) =>
@@ -227,9 +163,8 @@ const newPrim = doc
   .setIndices(doc.createAccessor().setType('SCALAR').setArray(new Uint16Array(outIdx)).setBuffer(buffer))
   .setAttribute('POSITION', mkAcc(outPos, 'VEC3'))
   .setAttribute('NORMAL', mkAcc(outNormal, 'VEC3'))
-  .setAttribute('TEXCOORD_0', mkAcc(outUV, 'VEC2'))
   .setMaterial(material)
-const newNode = doc.createNode('LowPolyDesk').setMesh(doc.createMesh('LowPolyDesk').addPrimitive(newPrim))
+const newNode = doc.createNode('SwappedDesk').setMesh(doc.createMesh('SwappedDesk').addPrimitive(newPrim))
 sceneRootNode.addChild(newNode)
 
 // ---------- 5. 删旧桌节点，收尾 ----------
