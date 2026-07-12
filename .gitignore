@@ -11,6 +11,9 @@ reference/
 # NES ROM（版权原因不入库，自备后放这里）
 public/roms/*.nes
 
+# OSS 密钥（upload-oss.mjs 环境变量缺失时自动读它，绝不能提交）
+.env.oss
+
 # 编辑器/系统
 .DS_Store
 Thumbs.db

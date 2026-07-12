@@ -1,22 +1,33 @@
 // 把大静态资源（models/books/paintings/roms + 两张散图）上传到阿里云 OSS，并确保 CORS 就位。
 // three.js 的 GLB/贴图/ROM 全是跨域请求，bucket 没有 CORS 规则会加载失败，脚本每次都重放规则（幂等）。
 //
-// 用法（AK/SK 走环境变量，勿写进仓库）：
+// 用法（AK/SK 勿写进仓库；优先读环境变量，缺失时自动读仓库根的 .env.oss，该文件已 gitignore）：
 //   npm install ali-oss --no-save        # 仅上传时临时装，不进 package.json
+//   node tools/upload-oss.mjs                                 (密钥在 .env.oss 里)
 //   OSS_AK=xxx OSS_SK=yyy node tools/upload-oss.mjs          (Git Bash)
 //   $env:OSS_AK='xxx'; $env:OSS_SK='yyy'; node tools/upload-oss.mjs   (PowerShell)
 //
 // 重复跑会整体覆盖（新增/更新书封面后直接重跑即可）。代码侧引用见 src/Experience/assets.js。
 import OSS from 'ali-oss'
-import { readdirSync, statSync, existsSync } from 'node:fs'
+import { readdirSync, statSync, existsSync, readFileSync } from 'node:fs'
 import { join, extname, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const BUCKET = 'lihongbin-my-room'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../public')
 
+// 环境变量缺失时从 .env.oss（KEY=VALUE 每行一条，# 开头是注释）补齐
 if (!process.env.OSS_AK || !process.env.OSS_SK) {
-  console.error('缺少 OSS_AK / OSS_SK 环境变量')
+  const envFile = join(ROOT, '../.env.oss')
+  if (existsSync(envFile)) {
+    for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+      const m = line.match(/^\s*(OSS_[A-Z]+)\s*=\s*(\S+)/)
+      if (m && !process.env[m[1]]) process.env[m[1]] = m[2]
+    }
+  }
+}
+if (!process.env.OSS_AK || !process.env.OSS_SK) {
+  console.error('缺少 OSS_AK / OSS_SK 环境变量（也可放在仓库根的 .env.oss）')
   process.exit(1)
 }
 
