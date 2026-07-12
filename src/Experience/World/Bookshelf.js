@@ -652,12 +652,14 @@ export default class Bookshelf {
       .book-caption .title { font-size: 16px; font-weight: 700; }
       .book-caption .meta { font-size: 12px; color: rgba(255,255,255,.72); margin-top: 3px; }
       .book-caption .stars { font-size: 13px; color: #ffd88a; margin-top: 2px; letter-spacing: 2px; }
+      .book-caption .hint { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 6px; }
     `
     document.head.appendChild(style)
 
     this.caption = document.createElement('div')
     this.caption.className = 'book-caption'
-    this.caption.innerHTML = '<div class="title"></div><div class="meta"></div><div class="stars"></div>'
+    this.caption.innerHTML =
+      '<div class="title"></div><div class="meta"></div><div class="stars"></div><div class="hint">拖动翻转 · 点击放回</div>'
     document.body.appendChild(this.caption)
   }
 
@@ -810,6 +812,7 @@ export default class Bookshelf {
       poppedEnd: endPos.clone().addScaledVector(popWorld, PULL_OUT),
     })
     this.caption.classList.remove('show')
+    this.canvas.style.cursor = ''
   }
 
   heldFrame(now, t) {
@@ -837,10 +840,12 @@ export default class Bookshelf {
       if (p >= 1) {
         h.stage = 'idle'
         h.idleT = t
+        h.vy = 0.06 // 借惯性系统自转 ~45° 再吸回：演示"可拖拽翻转"
         this.showCaption(h.book)
       }
     } else if (h.stage === 'idle') {
       // 悬停呼吸 + 拖拽翻转（松手后带惯性，转满一圈自动吸回正面）
+      this.canvas.style.cursor = h.dragging ? 'grabbing' : 'grab'
       if (!h.dragging) {
         h.ry += h.vy
         h.vy *= 0.93

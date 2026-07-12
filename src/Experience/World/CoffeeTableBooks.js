@@ -324,6 +324,7 @@ export default class CoffeeTableBooks {
       poppedEnd: this.homePos.clone().add(new THREE.Vector3(0, PULL_UP, 0)),
     })
     this.experience.world?.bookshelf?.caption.classList.remove('show')
+    this.canvas.style.cursor = ''
   }
 
   // 三段动画同 Bookshelf.heldFrame，只是"抽出"方向换成向上提起
@@ -350,9 +351,11 @@ export default class CoffeeTableBooks {
       if (p >= 1) {
         h.stage = 'idle'
         h.idleT = t
+        h.vy = 0.06 // 借惯性系统自转 ~45° 再吸回：演示"可拖拽翻转"
         this.experience.world?.bookshelf?.showCaption(this.book)
       }
     } else if (h.stage === 'idle') {
+      this.canvas.style.cursor = h.dragging ? 'grabbing' : 'grab'
       if (!h.dragging) {
         h.ry += h.vy
         h.vy *= 0.93
