@@ -37,7 +37,7 @@ src/
       CoffeeTableBooks.js        # 茶几上"正在读"的那本书（finished:false 里 date 最新的一本，平放+真实封面；点击取书动效同书架；由 TVZone 在茶几摆好后实例化）
       MarioTV.js                 # 电视里可玩的 NES 马里奥（jsnes + CanvasTexture，ROM 自备放 public/roms/）
       Bookshelf.js               # 左墙书架 + 书 + 年份分隔盒 + 取书/放回动效（全程序化，无模型）
-      booksData.js               # 读书记录数据，同步自 ..\book 项目的 books.js；封面图在 public/books/
+      booksData.js               # 读书记录数据，同步自飞书多维表格（node tools/sync-books.mjs 生成，勿手编排序）；封面图在 public/books/
       FloorLamp.js               # 沙发旁落地灯（程序化几何 + 暖点光 + 夜间投影 spot）
       WallWindow.js              # 后墙发光窗（HDR 玻璃 + RectAreaLight，白天暖阳夜里冷月；在电脑桌正上方）
       WallPainting.js            # 电视上方的宽幅挂画（婚纱照，金框+卡纸+夜间微自发光；照片源图在 Downloads，压缩产物 public/paintings/wedding.webp）
@@ -52,6 +52,7 @@ tools/
   split-switch.mjs               # 按顶点连通岛拆分"一个网格混多个部件"（写死了 switch，可参考改造）
   swap-desk.mjs                  # 把 computer-zone.glb 的旧黑桌（柜体+桌面板）换成单独下载的桌子模型（当前 teachers_desk 白灰板式桌）：非均匀缩放进旧桌精确包围盒、烘成 SwappedDesk 节点，桌面物件与运行时代码零改动；要求来源"整个文件只有桌子"，混件的先拆岛（见 git 历史 low_poly 版）（用法见文件头注释）
   upload-oss.mjs                 # 大静态资源上传到阿里云 OSS + 重放 CORS 规则（AK/SK 走环境变量，用法见文件头注释）
+  sync-books.mjs                 # 从飞书多维表格同步 booksData.js（读书记录唯一维护处；新书流程见 docs/add-book.md）
 models-src/                      # 下载的原始模型（大文件，不进 public/ 不参与构建）
 public/models/                   # 裁剪压缩后的模型（已全量上 OSS，运行时从 OSS 加载，见"静态资源走 OSS"条）
 public/xp/                       # winXP 构建产物（静态文件，Vite 原样拷进 dist；产物入库）
@@ -146,7 +147,7 @@ Room_Portfolio 关键实现文件（照抄交互流程用）：
    - [ ] 这 5 个模型（coffee_table_no_textures / kitchenz_simona_tv_cabinet / psx_flat_screen_tv / sim_loveseat / switch_console_roblox）也是 Sketchfab CC 协议，页面 credits 记得一并署名
    - [ ] 茶几手柄 2026-07 换成 gamepads 模型（一对 Xbox 风格手柄，原 switch_split 拆出的手柄弃用），Sketchfab 署名同上，作者见用户下载页；原始文件 models-src/gamepads.glb 6MB → crush-glb（ratio 0.15、tex 256、dropNormal 默认砍）→ 153KB，两只各带彩色贴图，运行时钳 roughness ≥ 0.4
 3. [x] **书架 + 书**：`World/Bookshelf.js`，全程序化。5 层木架贴左墙前段（z∈[-0.8, 4.0]，前端贴齐墙边缘，避开墙角电脑桌），只上架已读完的书（filter `finished`，约 110 本），按阅读顺序从左上往右下流式排列，每年第一本前立一个刻年份的小木盒分隔（【2018】书 书…【2019】…）。书本尺寸按页数/开本估算，书脊 canvas 贴图竖排书名，封面图懒加载（hover/取书时才请求 public/books/）。交互采用 Room_Portfolio 的两态模式：**默认态**悬停书架显示白描边（包围盒放大一圈的 BackSide 白壳，一个 draw call，以后上 EffectComposer 可换 OutlinePass）、点击书架进入**聚焦态**——保存当前视角后把 `Navigation.view` 的目标值拨到书架正前方（相机用自带平滑飞过去），同时收紧限位：phi/theta 锁死、radius 允许 2.5～取景距离（滚轮凑近看书名）、target 允许沿书架平移；点书架外任意处/ESC 退出，恢复保存的视角与限位（飞回去即"已取消"的反馈）。取书/还书只在聚焦态可用：hover 滑出、点击取书（抽出→飞到镜头前→拖拽翻转→点击/ESC 放回），拿书期间 `Navigation.enabled=false`。动效与数据移植自 `..\book` 项目（那边单位是米，这边 ×2）。这套"保存视角 + 改限位 + enabled 开关"的机制已抽成通用 `Navigation.focus()/blur()`（TODO 5 电视已复用，TODO 4 继续用）。遗留：
-   - [ ] 新读完的书在 book 项目的 books.js 维护后拷到 booksData.js（封面图拷到 public/books/ 后跑 `tools/upload-oss.mjs` 传 OSS——封面运行时从 OSS 加载，只拷本地不上传是看不到的）。booksData 现在喂两处：书架只收 finished:true；茶几（CoffeeTableBooks.js）只放"正在读"的那本 = finished:false 里 date 最新的一本（用户约定同时只在读一本，其余 finished:false 是搁置的"未读完"不上桌），封面图用 new Image() 异步加载，不走 DefaultLoadingManager 不污染 BIOS 日志
+   - [ ] 读书记录唯一维护处是飞书多维表格（用户维护；凭证/表格 ID 在 `D:\Users\HongBin\Documents\book\feishu.py`）。用户维护完说"同步书"即跑 `node tools/sync-books.mjs`：日期/状态/评分以飞书为准，pages/height/color 本地保留；新书自动从飞书下载封面到 public/books/ 并算主色调，pages/height 写 null——按 `docs/add-book.md` 联网查后手工补（豆瓣拿页数、搜开本换算高度），最后跑 `tools/upload-oss.mjs` 传封面（运行时从 OSS 加载，只存本地看不到）。booksData 现在喂两处：书架只收 finished:true；茶几（CoffeeTableBooks.js）只放"正在读"的那本 = finished:false 里 date 最新的一本（用户约定同时只在读一本，其余 finished:false 是搁置的"未读完"不上桌），封面图用 new Image() 异步加载，不走 DefaultLoadingManager 不污染 BIOS 日志
    - [x] 书架 draw call 优化（2026-07 完成）：默认态书+年份盒合并成 6 个网格（所有书脊/年份盒正面共用一张 4096 宽的图集纹理、封面封底烘成顶点色），全场景 1571→155 call；聚焦书架时才惰性构建逐本独立网格（书脊也复用图集 UV 重映射，不再逐本建纹理），取书/悬停/封面懒加载不变，聚焦态约 694 call（用户认可"默认态牺牲视觉换性能、聚焦态视觉优先"）。enterFocus/exitFocus 里切换 mergedBooks/booksGroup 可见性
 4. [x] **显示器装浏览器版 Windows XP**（2026-07 完成）：fork ShizukuIchi/winXP 到 `xp/` 子项目，构建产物入库在 `public/xp/`；`CSS3D.js` 第二渲染层 + `World/XPScreen.js` 两态交互（默认态截图纹理、聚焦态挂 iframe），浮层方案未用挖洞（理由与细节见"关键实现说明"）。已用 Playwright 全流程验证（悬停描边/点击聚焦/iframe 里点开始菜单/ESC 与点屏幕外退出/书架互斥/生产构建）。遗留：
    - [ ] winXP 是 MIT 协议，页面 credits 记得署名 ShizukuIchi/winXP

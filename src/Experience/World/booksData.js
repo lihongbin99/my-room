@@ -1,4 +1,4 @@
-// 读书记录数据，同步自 D:\Code\HongBin\Nodejs\book 的 books.js（新增书目在那边维护后拷过来）
+// 读书记录数据，同步自飞书多维表格：node tools/sync-books.mjs（新书流程见 docs/add-book.md）
 // height 单位 mm；cover 对应 public/books/ 下的封面图
 const BOOKS =
 [
@@ -127,7 +127,9 @@ const BOOKS =
   { "title": "卡拉马佐夫兄弟", "author": "陀思妥耶夫斯基", "isbn": "9787532763696", "cover": "卡拉马佐夫兄弟.jpg", "date": "2026-06-20", "finished": true, "rating": 5, "pages": 1092, "height": 210, "color": "#2A787A" },
   { "title": "东方快车谋杀案", "author": "阿加莎·克里斯蒂", "isbn": "9787020056309", "cover": "东方快车谋杀案.jpg", "date": "2026-07-02", "finished": true, "rating": 5, "pages": 248, "height": 210, "color": "#6D6544" },
   { "title": "悉达多", "author": "赫尔曼·黑塞", "isbn": "9787201112695", "cover": "悉达多.jpg", "date": "2026-07-06", "finished": true, "rating": 3, "pages": 196, "height": 190, "color": "#988A71" },
-  { "title": "平凡的世界（全三部）", "author": "路遥", "isbn": "9787530221396", "cover": "平凡的世界（全三部）.jpg", "date": "2026-07-08", "finished": false, "rating": null, "pages": 1300, "height": 210, "color": "#C59845" }
+  { "title": "平凡的世界（全三部）", "author": "路遥", "isbn": "9787530221396", "cover": "平凡的世界（全三部）.jpg", "date": "2026-07-08", "finished": true, "rating": 5, "pages": 1300, "height": 210, "color": "#C59845" },
+  { "title": "白轮船", "author": "钦吉斯·艾特玛托夫", "isbn": "9787575306362", "cover": "白轮船.jpg", "date": "2026-07-30", "finished": true, "rating": 4, "pages": 192, "height": 210, "color": "#2898D8" },
+  { "title": "厌女", "author": "上野千鹤子", "isbn": "9787542645715", "cover": "厌女.jpg", "date": "2026-08-01", "finished": false, "rating": null, "pages": 261, "height": 210, "color": "#F8E8D8" }
 ];
 
 export default BOOKS
