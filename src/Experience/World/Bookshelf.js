@@ -511,8 +511,17 @@ export default class Bookshelf {
 
     // 书名竖排：中文一字一格，英文/数字转 90° 顺着书脊走。
     // 字占书脊宽的比例往大调 + 深色描边，远看（书脊只有十几像素宽）才有辨识度
-    const size = Math.min(w * 0.66, 72)
-    g.font = `600 ${size}px "Microsoft YaHei", "PingFang SC", sans-serif`
+    // 长书名允许缩字号：先保证书名完整，再保证字号大
+    let size = Math.min(w * 0.66, 72)
+    const font = s => `600 ${s}px "Microsoft YaHei", "PingFang SC", sans-serif`
+    g.font = font(size)
+    // 全角括号转半角走旋转路径：竖排里立着的（）难看且占一整格
+    const chars = [...b.title.replace(/（/g, '(').replace(/）/g, ')')]
+    // 逐字符占位排布：汉字占一格字高，旋转字符只占自己的字宽（括号这类窄字符不与邻字重叠）
+    const isAscii = ch => /[\x00-\xff]/.test(ch)
+    const ext = ch => (isAscii(ch) ? g.measureText(ch).width : size)
+    const need = size + chars.reduce((a, ch) => a + ext(ch), (chars.length - 1) * size * 0.12)
+    if (need > h) g.font = font((size *= h / need))
     g.textAlign = 'center'
     g.textBaseline = 'middle'
     g.lineJoin = 'round'
@@ -523,20 +532,20 @@ export default class Bookshelf {
       g.strokeText(ch, x, y)
       g.fillText(ch, x, y)
     }
-    let y = size * 1.0
-    for (const ch of b.title) {
-      if (y > h - size) break
-      if (/[\x00-\xff]/.test(ch)) {
+    let y = size * 0.5
+    for (const ch of chars) {
+      const e = ext(ch)
+      y += e / 2
+      if (isAscii(ch)) {
         g.save()
         g.translate(w / 2, y)
         g.rotate(Math.PI / 2)
         drawChar(ch, 0, 0)
         g.restore()
-        y += g.measureText(ch).width + size * 0.16
       } else {
         drawChar(ch, w / 2, y)
-        y += size * 1.12
       }
+      y += e / 2 + size * 0.12
     }
   }
 
