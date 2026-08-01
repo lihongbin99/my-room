@@ -3,9 +3,10 @@ import Experience from '../Experience.js'
 import BOOKS from './booksData.js'
 import { assetUrl } from '../assets.js'
 
-// 书架 + 书（左墙 x=-4）：架体程序化生成，全部书按阅读顺序（date）
+// 书架 + 书（左墙 x=-4）：架体程序化生成，读完的书按阅读顺序（date）
 // 从最上层左端往右下流式排列，每年第一本书前立一个刻年份的小木盒当分隔
-// （【2018】书 书 …【2019】书 …）。
+// （【2018】书 书 …【2019】书 …）。未读完的书（除茶几那本"在读"）集中
+// 贴最底层右端，前立同款「未读完」盒，与已读书流之间留空档。
 // 书本构建与取书/放回动效移植自 book 项目（..\book\main.js），那边尺寸单位
 // 是米，这边房间比例 1 单位 = 0.5m，长度一律 ×2 换算；贴图绘制仍按米算像素。
 
@@ -190,11 +191,16 @@ export default class Bookshelf {
   }
 
   setBooks() {
-    // 只上架读完的书（finished），在读/弃读的不放
     const byDate = (a, b) => (a.date === b.date ? a._i - b._i : a.date < b.date ? -1 : 1)
-    const sorted = BOOKS.map((b, i) => ({ ...b, _i: i }))
-      .filter((b) => b.finished)
-      .sort(byDate)
+    const all = BOOKS.map((b, i) => ({ ...b, _i: i }))
+    const sorted = all.filter((b) => b.finished).sort(byDate)
+    // "在读" = finished:false 里 date 最新的一本，在茶几上（与 CoffeeTableBooks
+    // 同一选法拿到同一对象，说明卡靠引用区分"在读/未读完"），不重复上架
+    this.readingBook = BOOKS.filter((b) => !b.finished).sort((a, b) => (a.date > b.date ? -1 : 1))[0]
+    const readingI = BOOKS.indexOf(this.readingBook)
+    const unfinished = all.filter((b) => !b.finished && b._i !== readingI).sort(byDate)
+    let unfinishedW = YEAR_BOX.w + GAP * 2
+    for (const b of unfinished) unfinishedW += this.bookDims(b).t + GAP
 
     // 排成"物件流"：每年第一本书前插一个年份盒
     const items = []
@@ -221,7 +227,9 @@ export default class Bookshelf {
       // 年份盒不孤立在行尾：连同它后面第一本书一起量是否放得下
       let needed = width
       if (item.year && items[i + 1]?.book) needed += this.bookDims(items[i + 1].book).t + GAP
-      if (x + needed > USABLE / 2 && x > -USABLE / 2 + 1e-6) {
+      // 最底层右端留给未读完区（外加空档）
+      const rowEnd = row === ROWS - 1 ? USABLE / 2 - unfinishedW - 0.3 : USABLE / 2
+      if (x + needed > rowEnd && x > -USABLE / 2 + 1e-6) {
         row++
         x = -USABLE / 2
       }
@@ -232,7 +240,7 @@ export default class Bookshelf {
       const floorY = this.shelfFloorY(ROWS - 1 - row)
       if (item.year) {
         this.yearLayout.push({
-          year: item.year,
+          label: item.year,
           pos: new THREE.Vector3(
             x + GAP + YEAR_BOX.w / 2,
             floorY + YEAR_BOX.h / 2,
@@ -252,6 +260,28 @@ export default class Bookshelf {
         })
       }
       x += width
+    }
+
+    // 未读完区：贴最底层右端（与左边书流留空档），「未读完」盒 + 书按开始日期从左到右
+    let ux = USABLE / 2 - unfinishedW
+    const bottomY = this.shelfFloorY(0)
+    this.yearLayout.push({
+      label: '未读完',
+      pos: new THREE.Vector3(ux + GAP + YEAR_BOX.w / 2, bottomY + YEAR_BOX.h / 2, CASE_D / 2 - 0.03 - YEAR_BOX.d / 2),
+    })
+    ux += YEAR_BOX.w + GAP * 2
+    for (const book of unfinished) {
+      const dims = this.bookDims(book)
+      this.bookLayout.push({
+        book,
+        dims,
+        pos: new THREE.Vector3(
+          ux + dims.t / 2,
+          bottomY + dims.h / 2,
+          CASE_D / 2 - 0.03 - dims.w / 2 - Math.random() * 0.02
+        ),
+      })
+      ux += dims.t + GAP
     }
 
     this.buildAtlas()
@@ -279,7 +309,7 @@ export default class Bookshelf {
       })
     }
     for (const it of this.yearLayout) {
-      cells.push({ it, w: 128, h: 196, draw: (g, w, h) => this.drawYearFront(g, w, h, it.year) })
+      cells.push({ it, w: 128, h: 196, draw: (g, w, h) => this.drawBoxFront(g, w, h, it.label) })
     }
 
     // 行式打包
@@ -449,18 +479,21 @@ export default class Bookshelf {
     this.bookMeshes.push(mesh)
   }
 
-  drawYearFront(g, w, h, year) {
+  drawBoxFront(g, w, h, label) {
     g.fillStyle = '#3E2F1F'
     g.fillRect(0, 0, w, h)
     g.strokeStyle = '#B08D57'
     g.lineWidth = 3
     g.strokeRect(7, 7, w - 14, h - 14)
     g.fillStyle = '#E8CE9C'
-    g.font = '700 46px Georgia, serif'
     g.textAlign = 'center'
     g.textBaseline = 'middle'
-    g.fillText(year.slice(0, 2), w / 2, h / 2 - 27)
-    g.fillText(year.slice(2), w / 2, h / 2 + 27)
+    // 年份两位一行；文字标签（如「未读完」）一字一行
+    const lines = /^\d{4}$/.test(label) ? [label.slice(0, 2), label.slice(2)] : [...label]
+    const size = lines.length > 2 ? 40 : 46
+    const step = lines.length > 2 ? 50 : 54
+    g.font = `700 ${size}px Georgia, "Songti SC", SimSun, serif`
+    lines.forEach((s, i) => g.fillText(s, w / 2, h / 2 + (i - (lines.length - 1) / 2) * step))
   }
 
   // 书脊绘制（画进图集的格子里，坐标已由调用方 translate 好）：
@@ -666,7 +699,8 @@ export default class Bookshelf {
   showCaption(b) {
     const [title, meta, stars] = this.caption.children
     title.textContent = b.title
-    meta.textContent = `${b.author} · ${b.date} 开始读${b.finished ? '' : ' · 在读'}`
+    const state = b.finished ? '' : b === this.readingBook ? ' · 在读' : ' · 未读完'
+    meta.textContent = `${b.author} · ${b.date} 开始读${state}`
     stars.textContent = b.rating ? '★'.repeat(b.rating) + '☆'.repeat(5 - b.rating) : ''
     this.caption.classList.add('show')
   }
