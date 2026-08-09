@@ -130,7 +130,8 @@ const BOOKS =
   { "title": "平凡的世界（全三部）", "author": "路遥", "isbn": "9787530221396", "cover": "平凡的世界（全三部）.jpg", "date": "2026-07-08", "finished": true, "rating": 5, "pages": 1282, "height": 210, "color": "#C59845" },
   { "title": "白轮船", "author": "钦吉斯·艾特玛托夫", "isbn": "9787575306362", "cover": "白轮船.jpg", "date": "2026-07-30", "finished": true, "rating": 4, "pages": 192, "height": 210, "color": "#2898D8" },
   { "title": "厌女", "author": "上野千鹤子", "isbn": "9787542645715", "cover": "厌女.jpg", "date": "2026-08-01", "finished": true, "rating": 1, "pages": 261, "height": 210, "color": "#F8E8D8" },
-  { "title": "白鹿原", "author": "陈忠实", "isbn": "9787506394314", "cover": "白鹿原.jpg", "date": "2026-08-03", "finished": false, "rating": null, "pages": 609, "height": 210, "color": "#882818" }
+  { "title": "置身事内", "author": "兰小欢", "isbn": "9787208171336", "cover": "置身事内.jpg", "date": "2026-08-03", "finished": true, "rating": 5, "pages": 340, "height": 260, "color": "#F8F8F8" },
+  { "title": "白鹿原", "author": "陈忠实", "isbn": "9787506394314", "cover": "白鹿原.jpg", "date": "2026-08-10", "finished": false, "rating": null, "pages": 609, "height": 210, "color": "#882818" }
 ];
 
 export default BOOKS
