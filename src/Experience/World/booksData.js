@@ -133,7 +133,8 @@ const BOOKS =
   { "title": "置身事内", "author": "兰小欢", "isbn": "9787208171336", "cover": "置身事内.jpg", "date": "2026-08-03", "finished": true, "rating": 5, "pages": 340, "height": 260, "color": "#F8F8F8" },
   { "title": "白鹿原", "author": "陈忠实", "isbn": "9787506394314", "cover": "白鹿原.jpg", "date": "2026-08-10", "finished": true, "rating": 4, "pages": 609, "height": 210, "color": "#882818" },
   { "title": "数据密集型应用系统设计", "author": "Martin Kleppmann", "isbn": "9787519821968", "cover": "数据密集型应用系统设计.jpg", "date": "2026-08-20", "finished": true, "rating": 5, "pages": 519, "height": 260, "color": "#F8F8F8" },
-  { "title": "PostgreSQL 14 Internals", "author": "Egor Rogov", "isbn": "9785604597040", "cover": "PostgreSQL 14 Internals.png", "date": "2026-08-31", "finished": false, "rating": null, "pages": 548, "height": 254, "color": "#D8E8F8" }
+  { "title": "PostgreSQL 14 Internals", "author": "Egor Rogov", "isbn": "9785604597040", "cover": "PostgreSQL 14 Internals.png", "date": "2026-08-31", "finished": false, "rating": null, "pages": 548, "height": 254, "color": "#D8E8F8" },
+  { "title": "人月神话（纪念典藏版）", "author": "小弗雷德里克·P.布鲁克斯", "isbn": "9787302635383", "cover": "人月神话（纪念典藏版）.jpg", "date": "2026-10-08", "finished": false, "rating": null, "pages": 292, "height": 210, "color": "#F8F8F8" }
 ];
 
 export default BOOKS
