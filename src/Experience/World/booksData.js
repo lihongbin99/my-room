@@ -134,7 +134,9 @@ const BOOKS =
   { "title": "白鹿原", "author": "陈忠实", "isbn": "9787506394314", "cover": "白鹿原.jpg", "date": "2026-08-10", "finished": true, "rating": 4, "pages": 609, "height": 210, "color": "#882818" },
   { "title": "数据密集型应用系统设计", "author": "Martin Kleppmann", "isbn": "9787519821968", "cover": "数据密集型应用系统设计.jpg", "date": "2026-08-20", "finished": true, "rating": 5, "pages": 519, "height": 260, "color": "#F8F8F8" },
   { "title": "PostgreSQL 14 Internals", "author": "Egor Rogov", "isbn": "9785604597040", "cover": "PostgreSQL 14 Internals.png", "date": "2026-08-31", "finished": false, "rating": null, "pages": 548, "height": 254, "color": "#D8E8F8" },
-  { "title": "人月神话（纪念典藏版）", "author": "小弗雷德里克·P.布鲁克斯", "isbn": "9787302635383", "cover": "人月神话（纪念典藏版）.jpg", "date": "2026-10-08", "finished": false, "rating": null, "pages": 292, "height": 210, "color": "#F8F8F8" }
+  { "title": "人月神话（纪念典藏版）", "author": "小弗雷德里克·P.布鲁克斯", "isbn": "9787302635383", "cover": "人月神话（纪念典藏版）.jpg", "date": "2026-10-08", "finished": true, "rating": 2, "pages": 292, "height": 210, "color": "#F8F8F8" },
+  { "title": "写作法宝", "author": "威廉·津瑟", "isbn": "9787300173634", "cover": "写作法宝.jpg", "date": "2026-10-13", "finished": true, "rating": 2, "pages": 306, "height": 260, "color": "#E8E878" },
+  { "title": "局外人", "author": "阿尔贝·加缪", "isbn": "9787532761760", "cover": "局外人.jpg", "date": "2026-10-20", "finished": false, "rating": null, "pages": 160, "height": 210, "color": "#B8B8B8" }
 ];
 
 export default BOOKS
