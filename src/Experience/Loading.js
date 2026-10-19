@@ -7,9 +7,7 @@ import BOOKS from './World/booksData.js'
 //   manager，天然全走它；Bookshelf 封面懒加载已隔离到私有 manager，不会让进度"复活"）
 // - "加载完成"不用 manager.onLoad（GLTF 解析间隙会误触发，且 XPScreen 的截图纹理是在
 //   GLB 解析回调里才开始加载的），改等各模块自己暴露的 ready Promise，确定性收口
-// - 收口后趁遮罩还盖着画布做 shader 预热：把 currentMix 逐状态钉住各渲染一帧，精确盖住
-//   所有"灯数×管线"组合（spot 灯/台灯开关、composer 阈值各对应一整套全场景 shader 变体），
-//   否则首次拖日夜滑杆会因全场景 shader 重编译卡一下（用户反馈过；细节与教训见 prewarm）
+// - 资源就绪后预渲染白天场景，再自动进场
 const LINE_GAP = 90 // 相邻两行的最小间隔 ms：本地缓存秒加载时也保留"逐行自检"的仪式感
 const PAD_COL = 44 // 资源行点号补齐到的列宽
 
@@ -177,29 +175,10 @@ export default class Loading {
     })
   }
 
-  // 逐状态钉住 currentMix 各渲染一帧，覆盖所有"灯数×管线"组合。灯的 visible 一变
-  // （FloorLamp spot >0.00625、DeskGlow 台灯 >0.0385、composer >0.02）全场景就是一套新变体。
-  // ⚠️ 教训：旧方案靠自然缓动往返、指望回程"在阈值带内必然多帧停留"，但缓动是
-  // min(1, 0.005×delta) 的指数追赶——编译冻结帧的 delta 高达数秒，下一步直接跳到目标值，
-  // 把低 mix 的阈值带整个跳过，漏掉的变体全堆到首次真实拖滑杆时爆一次大冻结（实测 3.8s）。
-  // 钉步进不受冻结影响：卡多久都只是慢，不会跳步。任何 <0.08 的开关阈值都至少落一帧；
-  // 以后新增夜灯若阈值 ≥0.08，在粗段补一步或调低强度阈值
   async prewarm() {
-    const el = this.addLine(this.pad('Precompiling day/night pipelines'))
-    const env = this.experience.world.environment
-    // rAF 与 250ms 超时赛跑：后台标签页 rAF 不发火时照样走完，退化为无预热但绝不卡死开机
-    const frame = () =>
-      new Promise((resolve) => {
-        requestAnimationFrame(resolve)
-        setTimeout(resolve, 250)
-      })
-    // 1 → 0.08 粗步进（×0.7），0.08 → 0 细步进（0.004）
-    for (let m = 1; m > 0; m = m > 0.08 ? m * 0.7 : m - 0.004) {
-      env.pin(m)
-      await frame()
-    }
-    env.pin(0)
-    await frame()
+    const el = this.addLine(this.pad('Precompiling daytime scene'))
+    this.experience.world.update()
+    this.experience.renderer.update()
     el.textContent += 'OK'
   }
 

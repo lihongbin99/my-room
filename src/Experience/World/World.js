@@ -28,8 +28,7 @@ export default class World {
   }
 
   update() {
-    this.environment.update()
-    this.floorLamp.update() // 在 environment 之后：读当帧最新 currentMix
+    this.floorLamp.update()
     this.wallWindow.update()
     this.wallPainting.update()
     this.deskGlow.update()

@@ -21,7 +21,7 @@ export default class CSS3D {
     el.style.top = '0'
     el.style.left = '0'
     el.style.pointerEvents = 'none'
-    el.style.zIndex = '5' // canvas 之上、ThemePanel/caption（z=10）之下
+    el.style.zIndex = '5' // canvas 之上、caption（z=10）之下
     document.body.appendChild(el)
 
     this.resize()
