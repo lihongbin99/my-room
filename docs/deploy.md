@@ -7,6 +7,7 @@ ssh lizeyin /root/update_room.sh
 ```
 
 脚本在 `/usr/local/nginx/html/my-room` 执行 `git pull`、`pnpm install`、`pnpm run build`。
+脚本已显式把 `/usr/local/nodejs/bin` 加入 PATH，非交互 SSH 也能找到 pnpm。
 随后把服务器保留的 `mario.nes` 复制到 `dist/roms/`。
 主站 JS/CSS 构建时附带 `.gz`、`.br`。
 
