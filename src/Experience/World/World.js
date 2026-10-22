@@ -29,7 +29,6 @@ export default class World {
 
   update() {
     this.floorLamp.update()
-    this.wallWindow.update()
     this.wallPainting.update()
     this.deskGlow.update()
     this.deskProps.update()

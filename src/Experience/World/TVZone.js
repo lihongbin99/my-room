@@ -27,7 +27,7 @@ export default class TVZone {
     this.group = new THREE.Group()
     this.scene.add(this.group)
 
-    // ready 给 Loading（BIOS 开机屏）收口用：5 个 GLB 加载装配完成
+    // 首屏只等主要家具；手柄、Switch 和书封面不阻塞入场。
     this.ready = this.setup().catch((error) => {
       console.error('电视区模型加载失败：', error)
     })
@@ -36,13 +36,17 @@ export default class TVZone {
   async setup() {
     const loader = new GLTFLoader()
     loader.setMeshoptDecoder(MeshoptDecoder) // gamepads.glb 经 crush-glb.mjs 压缩，带 EXT_meshopt_compression
-    const [cabinet, tv, switchGltf, sofa, table, gamepads] = await Promise.all([
+    const loadProp = (path) => loader.loadAsync(assetUrl(path)).catch((error) => {
+      console.warn('电视区小物件加载失败：', error)
+      return null
+    })
+    const switchReady = loadProp('/models/switch.glb')
+    const gamepadsReady = loadProp('/models/gamepads.glb')
+    const [cabinet, tv, sofa, table] = await Promise.all([
       loader.loadAsync(assetUrl('/models/tv-cabinet.glb')),
       loader.loadAsync(assetUrl('/models/tv.glb')),
-      loader.loadAsync(assetUrl('/models/switch.glb')),
       loader.loadAsync(assetUrl('/models/loveseat.glb')),
       loader.loadAsync(assetUrl('/models/coffee-table.glb')),
-      loader.loadAsync(assetUrl('/models/gamepads.glb')),
     ])
 
     // 电视柜：模型自带朝向面向 +z（前面板在 z 正侧），背贴后墙
@@ -57,11 +61,14 @@ export default class TVZone {
     this.marioTV = new MarioTV(tvModel)
 
     // Switch 主机（模型已裁剪到只剩平板+Joy-Con），竖在柜面上，模型原始朝向背对房间，转 180°
-    const switchModel = this.fit(switchGltf.scene, { rotationY: Math.PI, width: SWITCH.width })
-    this.place(switchModel, {
-      x: ZONE_X + SWITCH.x,
-      backZ: WALL_INNER_Z + SWITCH.offZ,
-      onY: cabinetTop,
+    switchReady.then((gltf) => {
+      if (!gltf) return
+      const model = this.fit(gltf.scene, { rotationY: Math.PI, width: SWITCH.width })
+      this.place(model, {
+        x: ZONE_X + SWITCH.x,
+        backZ: WALL_INNER_Z + SWITCH.offZ,
+        onY: cabinetTop,
+      })
     })
 
     // 沙发：房间前部，转 180° 面向电视
@@ -77,11 +84,10 @@ export default class TVZone {
       .setFromObject(tableModel.getObjectByName('Cube_Marble_0'))
       .max.y
 
-    this.setGamepads(gamepads.scene, tableTop)
+    gamepadsReady.then((gltf) => { if (gltf) this.setGamepads(gltf.scene, tableTop) })
 
-    // "正在读"的书堆上茶几，等它的封面图算加载收口的一部分
+    // "正在读"的书先显示程序化封面，真实封面随后补齐。
     this.books = new CoffeeTableBooks({ centerX: ZONE_X + TABLE.x, centerZ: TABLE.z, topY: tableTop })
-    await this.books.ready
   }
 
   // 一对游戏手柄平放茶几（模型 gamepads.glb 自带两只并排、各有彩色贴图，整组当一个物件摆）

@@ -4,6 +4,7 @@
 // 用法（AK/SK 勿写进仓库；优先读环境变量，缺失时自动读仓库根的 .env.oss，该文件已 gitignore）：
 //   npm install ali-oss --no-save        # 仅上传时临时装，不进 package.json
 //   node tools/upload-oss.mjs                                 (密钥在 .env.oss 里)
+//   node tools/upload-oss.mjs models/computer-zone-v2.glb       (只上传指定资源)
 //   OSS_AK=xxx OSS_SK=yyy node tools/upload-oss.mjs          (Git Bash)
 //   $env:OSS_AK='xxx'; $env:OSS_SK='yyy'; node tools/upload-oss.mjs   (PowerShell)
 //
@@ -64,6 +65,12 @@ if (!targets.length) {
   process.exit(0)
 }
 
+const requested = new Set(process.argv.slice(2))
+const selected = requested.size ? targets.filter(([key]) => requested.has(key)) : targets
+if (requested.size && selected.length !== requested.size) {
+  throw new Error('指定的资源不存在，请使用相对 public/ 的文件路径')
+}
+
 await client.putBucketCORS(BUCKET, [
   {
     allowedOrigin: '*',
@@ -76,7 +83,7 @@ await client.putBucketCORS(BUCKET, [
 console.log('CORS rule set: GET/HEAD from * allowed')
 
 let done = 0, bytes = 0
-for (const [key, full] of targets) {
+for (const [key, full] of selected) {
   const size = statSync(full).size
   await client.put(key, full, {
     headers: {
@@ -85,6 +92,6 @@ for (const [key, full] of targets) {
     },
   })
   done++; bytes += size
-  console.log(`[${String(done).padStart(3)}/${targets.length}] ${(size / 1024).toFixed(0).padStart(5)} KB  ${key}`)
+  console.log(`[${String(done).padStart(3)}/${selected.length}] ${(size / 1024).toFixed(0).padStart(5)} KB  ${key}`)
 }
 console.log(`\nDone: ${done} files, ${(bytes / 1024 / 1024).toFixed(1)} MB total`)

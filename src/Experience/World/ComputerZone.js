@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import Experience from '../Experience.js'
 import XPScreen from './XPScreen.js'
 import { assetUrl } from '../assets.js'
@@ -23,17 +24,20 @@ export default class ComputerZone {
     this.group = new THREE.Group()
     this.scene.add(this.group)
 
-    // ready 给 Loading（BIOS 开机屏）收口用：GLB 解析装配完 + XP 截图纹理也到位才算就绪
+    this.loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
+    const mobile = this.experience.sizes.mobile
+    // 主模型装配完即可进场，显示器截图可以随后到达。
     this.ready = new Promise((resolve) => {
-      new GLTFLoader().load(
-        assetUrl('/models/computer-zone.glb'),
+      this.loader.load(
+        assetUrl(`/models/computer-zone${mobile ? '-mobile' : ''}-v2.glb`),
         (gltf) => {
+          this.model = gltf.scene
           this.setModel(gltf.scene)
           this.setChairSwivel(gltf.scene)
           this.shiftDeskToCorner(gltf.scene)
           this.nudgeChair(gltf.scene)
           this.xpScreen = new XPScreen(gltf.scene) // 定位屏幕要在桌子推进墙角之后
-          resolve(this.xpScreen.ready)
+          resolve()
         },
         undefined,
         (error) => {
@@ -42,6 +46,38 @@ export default class ComputerZone {
         }
       )
     })
+  }
+
+  // 手机初次靠近电脑再升级贴图，保留现有几何、椅子动画和屏幕交互。
+  async upgradeTextures() {
+    if (!this.experience.sizes.mobile || this.upgrading || !this.model) return
+    this.upgrading = true
+    try {
+      const loader = new GLTFLoader(new THREE.LoadingManager()).setMeshoptDecoder(MeshoptDecoder)
+      const { scene } = await loader.loadAsync(assetUrl('/models/computer-zone-v2.glb'))
+      const materials = new Map()
+      scene.traverse((child) => {
+        if (child.isMesh) materials.set(child.material.name, child.material)
+      })
+      const replaced = new Set()
+      this.model.traverse((child) => {
+        if (!child.isMesh || replaced.has(child.material)) return
+        const source = materials.get(child.material.name)
+        if (!source) return
+        for (const key of Object.keys(source)) {
+          if (!source[key]?.isTexture) continue
+          child.material[key]?.dispose()
+          child.material[key] = source[key]
+        }
+        child.material.needsUpdate = true
+        replaced.add(child.material)
+      })
+      scene.traverse((child) => { if (child.isMesh) child.geometry.dispose() })
+      for (const material of materials.values()) material.dispose()
+    } catch (error) {
+      this.upgrading = false // 失败保留低清贴图，下次聚焦可重试。
+      console.warn('电脑高清贴图加载失败：', error)
+    }
   }
 
   setModel(model) {

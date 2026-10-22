@@ -4,7 +4,7 @@ import { assetUrl } from '../assets.js'
 
 // 电视里可玩的 NES 马里奥：jsnes 模拟器输出到离屏 canvas，再以 CanvasTexture
 // 贴到电视屏幕位置的平面上——不走 CSS3D，画面就是场景里的一块 mesh，有"真电视"感。
-// 进页面就自动启动模拟器：电视默认播着标题画面/演示（静音、无输入，像家里开着的电视）；
+// 进入房间后自动启动模拟器：电视默认播着标题画面/演示（静音、无输入）；
 // 两态交互仿 Bookshelf：默认态悬停白描边、点击聚焦到屏幕正前方，此时才开声音 +
 // 键盘转发给 NES（←→ 移动、X 跳、Z 跑/火球、Enter 开始），点屏幕外/ESC 退出（静音继续播）。
 // ROM 不进仓库（.gitignore 排除），已上 OSS 从那边加载（tools/upload-oss.mjs），缺失时屏幕给提示。
@@ -69,11 +69,13 @@ export default class MarioTV {
     this.setFocusHelpers(tvModel)
     this.setCaption()
     this.setInteraction()
-    // ready 给 Loading（BIOS 开机屏）收口用：resolve(true)=ROM 就绪，false=NO CARTRIDGE
+    // 自动播放稍后启动，避免模拟器下载/初始化挡住房间入场。
     this.ready = new Promise((resolve) => {
       this.bootResolve = resolve
     })
-    this.initEmulator() // 进页面就开机：默认态电视播标题画面/演示
+    this.experience.loading.revealed.then(() => {
+      this.autoStartTimer = setTimeout(() => this.initEmulator(), 1200)
+    })
   }
 
   /* ---------- 屏幕平面 + 各状态画面 ---------- */
@@ -331,6 +333,8 @@ export default class MarioTV {
     this.outlineMesh.visible = false
     this.canvas.style.cursor = ''
     this.caption.classList.add('show')
+    clearTimeout(this.autoStartTimer)
+    this.setAudio() // 首次点击也在用户手势内创建/恢复音频，模拟器可以随后加载。
     this.initEmulator() // 之前加载失败（比如后放的 ROM）就再试一次
     if (this.audioCtx) {
       this.audioRead = this.audioWrite // 丢掉挂起期间积压的旧采样，避免开声一瞬的杂音
@@ -420,6 +424,7 @@ export default class MarioTV {
         }
       }
       this.scriptNode.connect(this.audioCtx.destination)
+      if (!this.focused) this.audioCtx.suspend() // 先操作过房间也要保持自动播放静音。
     } catch {
       this.audioCtx = null // 没声也能玩
     }

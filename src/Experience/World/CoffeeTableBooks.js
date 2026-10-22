@@ -56,7 +56,7 @@ export default class CoffeeTableBooks {
     this.group = new THREE.Group()
     this.scene.add(this.group)
     this.buildBook(centerX, centerZ, topY)
-    this.ready = this.loadCover() // TVZone 的 ready 会等它（BIOS 收口），失败也 resolve
+    this.ready = this.loadCover() // 封面随后补齐，不阻塞房间入场。
     this.setInteraction()
   }
 

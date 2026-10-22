@@ -79,7 +79,7 @@ export default class XPScreen {
     mesh.position.copy(this.screenCenter)
     this.scene.add(mesh)
 
-    // ready 给 Loading（BIOS 开机屏）收口用；失败留待机图即可，不卡开机
+    // 截图随后补齐；失败保留待机图，不阻塞房间入场。
     this.ready = new Promise((resolve) => {
       new THREE.TextureLoader().load(
         assetUrl('/xp-desktop.webp'),
@@ -240,6 +240,7 @@ export default class XPScreen {
   /* ---------- 聚焦：挂 iframe / 退出：卸载 ---------- */
 
   enterFocus() {
+    this.experience.world.computerZone.upgradeTextures()
     const camera = this.camera.instance
     const fovTan = Math.tan((camera.fov * Math.PI) / 360)
     const fitH = (this.screenH / 2 + FOCUS_PAD) / fovTan

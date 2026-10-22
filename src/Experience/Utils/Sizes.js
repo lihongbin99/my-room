@@ -4,6 +4,7 @@ export default class Sizes extends EventEmitter {
   constructor() {
     super()
 
+    this.mobile = window.matchMedia('(pointer: coarse)').matches
     this.update()
 
     window.addEventListener('resize', () => {

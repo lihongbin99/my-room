@@ -284,7 +284,7 @@ export default class Bookshelf {
       ux += dims.t + GAP
     }
 
-    this.buildAtlas()
+    this.buildAtlas(this.experience.sizes.mobile ? 0.5 : 1)
     this.buildMerged()
 
     // 独立书网格的容器：首次聚焦时才填充
@@ -295,7 +295,7 @@ export default class Bookshelf {
 
   // 所有书脊 + 年份盒正面画进一张图集纹理：默认态合并网格与聚焦态独立
   // 网格共用（书脊不再逐本建 canvas 纹理），UV 重映射到各自格子
-  buildAtlas() {
+  buildAtlas(scale = 1) {
     const PPM = 3000 // 3000px/米：凑近看书脊文字仍清晰
     const PAD = 4 // 格子间留白，防 mipmap 缩小时相邻格互相渗色
     const ATLAS_W = 4096
@@ -330,9 +330,11 @@ export default class Bookshelf {
     const ATLAS_H = y + rowH + PAD
 
     const canvas = document.createElement('canvas')
-    canvas.width = ATLAS_W
-    canvas.height = ATLAS_H
+    canvas.width = Math.ceil(ATLAS_W * scale)
+    canvas.height = Math.ceil(ATLAS_H * scale)
     const g = canvas.getContext('2d')
+    // 只缩像素，保留原始排版坐标与 UV，聚焦后可直接换高清纹理。
+    g.scale(canvas.width / ATLAS_W, canvas.height / ATLAS_H)
     for (const c of cells) {
       g.save()
       g.translate(c.x, c.y)
@@ -350,7 +352,11 @@ export default class Bookshelf {
     const texture = new THREE.CanvasTexture(canvas)
     texture.colorSpace = THREE.SRGBColorSpace
     texture.anisotropy = 8
-    this.atlasMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.65 })
+    const oldTexture = this.atlasMat?.map
+    if (this.atlasMat) this.atlasMat.map = texture
+    else this.atlasMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.65 })
+    oldTexture?.dispose()
+    this.atlasScale = scale
   }
 
   // 把 BoxGeometry 的若干面拷进合并缓冲；face 序号同材质序（0..5 = +x -x +y -y +z -z）
@@ -654,10 +660,18 @@ export default class Bookshelf {
     this.focused = true
     this.outlineMesh.visible = false
     this.canvas.style.cursor = ''
+    if (this.atlasScale < 1 && this.atlasUpgrade == null) {
+      this.atlasUpgrade = requestAnimationFrame(() => {
+        this.atlasUpgrade = null
+        this.buildAtlas()
+      })
+    }
   }
 
   // 退出聚焦：Navigation.blur() 恢复进入前的视角和限位
   exitFocus() {
+    cancelAnimationFrame(this.atlasUpgrade)
+    this.atlasUpgrade = null
     this.navigation.blur()
     this.focused = false
     this.setHover(null)
